@@ -1,0 +1,37 @@
+spring:
+  datasource:
+    url: ${NALOG_DB_URL:jdbc:postgresql://localhost:5432/elgor_nalog}
+    username: ${NALOG_DB_USER:elgor}
+    password: ${NALOG_DB_PASSWORD}          # no default on purpose: startup fails if missing
+  jpa:
+    open-in-view: false                     # no lazy-loading surprises outside the transaction
+    hibernate:
+      ddl-auto: validate                    # Flyway owns the schema; Hibernate only verifies it
+    properties:
+      hibernate:
+        jdbc.time_zone: UTC
+        default_batch_fetch_size: 50        # list pages load customers in batches, no N+1
+  flyway:
+    enabled: true
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true      # a typo'd field is a 400, not a silently ignored value
+    generator:
+      write-bigdecimal-as-plain: true       # never "1E+3"
+
+server:
+  port: 8081
+  error:
+    include-message: never
+    include-stacktrace: never
+
+nalog:
+  pricing:
+    vat-rate: 0.2000                        # Serbian standard VAT 20%
+    labor-rate-per-hour: 2500.00            # RSD, net of VAT
+  security:
+    # SAME value as JWT_SECRET in the Node backend's .env, so one login works on both.
+    # Must be >= 32 bytes (HS256). No default: startup fails if missing/short.
+    jwt-secret: ${JWT_SECRET}
+  cors:
+    allowed-origins: ${NALOG_CORS_ORIGINS:http://localhost:5173}

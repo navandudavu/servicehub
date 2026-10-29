@@ -1,0 +1,161 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap');
+
+:root {
+  --ink: #000000;
+  --paper: #F4F6F8;
+  --paper-raised: #FFFFFF;
+  --green: #FFF100;
+  --green-dark: #C7BC00;
+  --on-accent: #000000;
+  --orange: #C7622D;
+  --stone: #5C6B75;
+  --stone-light: #D8D4C8;
+  --border: #E2E5E8;
+  --danger: #C0392B;
+
+  --radius: 4px;
+  --font: 'IBM Plex Sans', -apple-system, sans-serif;
+  --mono: 'IBM Plex Mono', monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+button, input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  color: var(--green-dark);
+}
+
+:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 500;
+  font-size: 13px;
+  transition: opacity 0.12s ease;
+}
+.btn:hover { opacity: 0.85; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  font-weight: 500;
+  font-size: 13px;
+  transition: opacity 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--border);
+}
+.btn-secondary:hover { background: var(--paper-raised); opacity: 1; border-color: var(--ink); }
+.btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-danger {
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+.btn-danger-outline {
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+.btn-danger-outline:hover { background: #FBEAE5; opacity: 1; }
+
+/* Size modifiers - declared after every color/variant class above so they
+   always win the cascade regardless of which variant class they're
+   combined with (e.g. className="btn-secondary btn-sm"). Equal-specificity
+   CSS rules apply in file order, not JSX class order, so this placement
+   is load-bearing, not cosmetic. */
+.btn-sm {
+  padding: 5px 11px;
+  font-size: 12px;
+}
+
+.btn-xs {
+  padding: 4px 9px;
+  font-size: 11.5px;
+}
+
+.input, select.input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  color: var(--ink);
+}
+.input:focus { border-color: var(--green); }
+
+label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--stone);
+  margin-bottom: 4px;
+}
+
+.field {
+  margin-bottom: 14px;
+}
+
+.card {
+  background: var(--paper-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.priority-urgent { border-left: 3px solid var(--danger); }
+.priority-high { border-left: 3px solid var(--orange); }
+.priority-normal { border-left: 3px solid var(--stone-light); }
+.priority-low { border-left: 3px solid transparent; }
+
+.tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  color: var(--stone);
+}
+
+::placeholder { color: var(--stone); opacity: 0.7; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
