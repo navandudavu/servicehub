@@ -243,3 +243,19 @@ export interface TechnicianView {
   id: number;
   name: string;
 }
+
+export type PhotoCategory = 'before' | 'after' | 'label' | 'other';
+
+/** Mirrors PhotoView.java. Metadata only; the image bytes are fetched with the auth header (see nalogApi.fetchPhotoBlob). */
+export interface PhotoView {
+  id: number;
+  nalogId: number;
+  category: PhotoCategory;
+  caption: string | null;
+  originalName: string | null;
+  contentType: string;
+  sizeBytes: number;
+  uploadedById: number | null;
+  uploadedByName: string | null;
+  createdAt: string;
+}

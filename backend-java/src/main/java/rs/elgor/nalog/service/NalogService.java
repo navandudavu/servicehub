@@ -391,6 +391,15 @@ public class NalogService {
         }
     }
 
+    /** For sibling services (photos): loads the nalog and applies the SAME access rule as everything else. */
+    @Transactional(readOnly = true)
+    public Nalog loadAccessible(Long id, AuthUser actor) {
+        Nalog n = nalogRepository.findById(id)
+                .orElseThrow(() -> NalogException.notFound("Nalog " + id + " not found"));
+        requireAccess(n, actor);
+        return n;
+    }
+
     private AppUser resolveAssignee(Long requestedId, AuthUser actor) {
         if (actor != null && !actor.isAdmin()) {
             if (requestedId != null && !requestedId.equals(actor.id())) {

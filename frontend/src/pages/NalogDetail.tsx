@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { nalogApi } from '../api/nalog';
 import { NalogApiError } from '../api/nalogApi';
 import { NalogStatusTag } from '../components/NalogStatusTag';
+import { NalogPhotos } from '../components/NalogPhotos';
 import Modal from '../components/Modal';
 import Spinner from '../components/Spinner';
 import { useCurrentUser } from '../context/typedAuth';
@@ -137,6 +138,8 @@ export default function NalogDetail() {
           <Card title={t('nalogDetail_diagnosis')}>
             <div style={{ whiteSpace: 'pre-wrap' }}>{nalog.diagnosis}</div>
           </Card>
+
+          <NalogPhotos nalogId={nalog.id} canUpload={nalog.status !== 'CANCELLED'} isAdmin={isAdmin} userId={user?.id ?? null} />
 
           <Card title={t('nalogDetail_partsLabor')}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>

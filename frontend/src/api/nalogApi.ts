@@ -2,7 +2,7 @@ import axios, { AxiosError, AxiosInstance, Method } from 'axios';
 import type {
   ApiProblem, CreateNalogRequest, CustomerView, CreatePartRequest, NalogListQuery, NalogPreview, NalogResponse,
   NalogStatus, NalogSummary, PageResponse, PartResponse, PreviewRequest, StatusHistoryView,
-  StockAdjustRequest, TechnicianView, UpdatePartRequest,
+  StockAdjustRequest, TechnicianView, UpdatePartRequest, PhotoView, PhotoCategory,
 } from '../types/nalog';
 
 /** Normalised error: the UI never has to look inside an AxiosError. */
@@ -46,7 +46,8 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized }:
    */
   async function send<T>(
     method: Method, url: string,
-    opts: { data?: unknown; params?: object; headers?: Record<string, string>; safeToRetry: boolean; signal?: AbortSignal },
+    opts: { data?: unknown; params?: object; headers?: Record<string, string>; safeToRetry: boolean; signal?: AbortSignal;
+            timeout?: number; responseType?: 'json' | 'blob' },
   ): Promise<T> {
     let lastError: NalogApiError | null = null;
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -54,6 +55,7 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized }:
         const auth = getAuthorization();
         const res = await http.request<T>({
           method, url, data: opts.data, params: opts.params, signal: opts.signal,
+          timeout: opts.timeout, responseType: opts.responseType,
           headers: { ...(auth ? { Authorization: auth } : {}), ...opts.headers },
         });
         return res.data;
@@ -122,6 +124,27 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized }:
     return send<TechnicianView[]>('GET', '/api/nalozi/technicians', { safeToRetry: true, signal });
   };
 
+  // ---- photos ----
+  const listPhotos = (nalogId: number, signal?: AbortSignal) =>
+    send<PhotoView[]>('GET', `/api/nalozi/${nalogId}/photos`, { safeToRetry: true, signal });
+
+  // Never retried automatically: a repeat could store the photo twice.
+  const uploadPhoto = (nalogId: number, file: File, category: PhotoCategory, signal?: AbortSignal) => {
+    const form = new FormData();
+    form.append('photo', file);
+    form.append('category', category);
+    return send<PhotoView>('POST', `/api/nalozi/${nalogId}/photos`, {
+      data: form, safeToRetry: false, timeout: 90_000, signal,
+    });
+  };
+
+  const deletePhoto = (nalogId: number, photoId: number) =>
+    send<void>('DELETE', `/api/nalozi/${nalogId}/photos/${photoId}`, { safeToRetry: false });
+
+  /** Image bytes need the Authorization header, so a plain <img src> can't be used: fetch as a blob. */
+  const fetchPhotoBlob = (nalogId: number, photoId: number, signal?: AbortSignal) =>
+    send<Blob>('GET', `/api/nalozi/${nalogId}/photos/${photoId}/file`, { safeToRetry: true, responseType: 'blob', signal });
+
   // ---- parts / inventory ----
   const searchParts = (q: string, opts: { onlyActive?: boolean; page?: number; size?: number } = {}, signal?: AbortSignal) =>
     send<PageResponse<PartResponse>>('GET', '/api/parts', { params: { q, ...opts }, safeToRetry: true, signal });
@@ -136,7 +159,7 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized }:
 
   return {
     newIdempotencyKey, submitNalog, previewNalog, listNalozi, getNalog, getNalogHistory, changeStatus,
-    searchCustomers, assignNalog, listTechnicians, searchParts, createPart, updatePart, adjustStock,
+    searchCustomers, assignNalog, listTechnicians, listPhotos, uploadPhoto, deletePhoto, fetchPhotoBlob, searchParts, createPart, updatePart, adjustStock,
   };
 }
 

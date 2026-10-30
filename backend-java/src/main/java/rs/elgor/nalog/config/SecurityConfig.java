@@ -78,7 +78,7 @@ public class SecurityConfig {
             @Value("${nalog.cors.allowed-origins}") List<String> origins) {
         CorsConfiguration cfg = new CorsConfiguration();
         cfg.setAllowedOrigins(origins);
-        cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "OPTIONS"));
+        cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         cfg.setAllowedHeaders(List.of("Authorization", "Content-Type", "Idempotency-Key"));
         cfg.setExposedHeaders(List.of("Location"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

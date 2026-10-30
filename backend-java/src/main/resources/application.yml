@@ -13,6 +13,10 @@ spring:
         default_batch_fetch_size: 50        # list pages load customers in batches, no N+1
   flyway:
     enabled: true
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 12MB
   jackson:
     deserialization:
       fail-on-unknown-properties: true      # a typo'd field is a 400, not a silently ignored value
@@ -33,5 +37,7 @@ nalog:
     # SAME value as JWT_SECRET in the Node backend's .env, so one login works on both.
     # Must be >= 32 bytes (HS256). No default: startup fails if missing/short.
     jwt-secret: ${JWT_SECRET}
+  photos:
+    dir: ${NALOG_PHOTOS_DIR:./data/nalog-photos}   # image files; back this folder up together with the database
   cors:
     allowed-origins: ${NALOG_CORS_ORIGINS:http://localhost:5173}
