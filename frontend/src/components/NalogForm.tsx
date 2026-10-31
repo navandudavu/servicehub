@@ -82,6 +82,7 @@ export function NalogForm({ isAdmin, onCreated }: Props) {
   const [initialStatus, setInitialStatus] = useState<'DRAFT' | 'DISPATCHED'>('DRAFT');
   const [scheduledAt, setScheduledAt] = useState('');          // datetime-local (browser local time)
   const [technicians, setTechnicians] = useState<TechnicianView[]>([]);
+  const [technicianError, setTechnicianError] = useState<string | null>(null);
   const [assignedTo, setAssignedTo] = useState('');
 
   // --- backend-computed preview + submit state ---
@@ -100,7 +101,11 @@ export function NalogForm({ isAdmin, onCreated }: Props) {
   useEffect(() => {
     if (!isAdmin) return;
     const ctrl = new AbortController();
-    nalogApi.listTechnicians(ctrl.signal).then(setTechnicians).catch(() => { /* dropdown stays empty */ });
+    nalogApi.listTechnicians(ctrl.signal).then(setTechnicians).catch((e) => {
+      if (!ctrl.signal.aborted && !(e instanceof NalogApiError && e.message === 'Request cancelled')) {
+        setTechnicianError(e instanceof Error ? e.message : 'Technician list refresh failed');
+      }
+    });
     return () => ctrl.abort();
   }, [isAdmin]);
 
@@ -378,6 +383,11 @@ export function NalogForm({ isAdmin, onCreated }: Props) {
             </>
           )}
         </div>
+        {technicianError && (
+          <div role="alert" style={{ color: 'var(--danger)', fontSize: 13, marginTop: 10 }}>
+            {`Unable to refresh technician list: ${technicianError}`}
+          </div>
+        )}
       </Section>
 
       {formError && (
