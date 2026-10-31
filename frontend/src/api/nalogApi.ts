@@ -103,20 +103,21 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized }:
   const assignNalog = (id: number, technicianId: number | null, signal?: AbortSignal) =>
     send<NalogResponse>('PATCH', `/api/nalozi/${id}/assign`, { data: { technicianId }, safeToRetry: true, signal });
 
-  // The technician list lives in the nalog service's own user table. Before reading it, push the
-  // Node team list in (admin only, at most once a minute) so everyone from the Team tab shows up.
-  let lastUserSync = 0;
+  /**
+   * Node owns the real user accounts. Send a fresh, complete snapshot every time
+   * the admin opens a technician-backed screen. The Java endpoint reconciles the
+   * snapshot, including accounts deleted or deactivated in the Team tab.
+   */
   const syncUsers = async (signal?: AbortSignal) => {
-    if (Date.now() - lastUserSync < 60_000) return;
-    try {
-      const users = await send<Array<{ id: number; name: string; role: string; active: number | boolean }>>(
-        'GET', '/api/users', { safeToRetry: true, signal });
-      await send('POST', '/api/nalozi/users/sync', {
-        data: users.map((u) => ({ id: u.id, name: u.name, role: u.role, active: !!u.active })),
-        safeToRetry: true, signal,
-      });
-      lastUserSync = Date.now();
-    } catch { /* not admin, or a service is down: fall back to whatever the nalog service already knows */ }
+    const users = await send<Array<{ id: number; name: string; role: string; active: number | boolean }>>(
+      'GET', '/api/users', { safeToRetry: true, signal });
+    if (!Array.isArray(users) || users.length === 0) {
+      throw new NalogApiError('The Team service returned an empty user list; technician sync was not applied.', null);
+    }
+    await send('POST', '/api/nalozi/users/sync', {
+      data: users.map((u) => ({ id: u.id, name: u.name, role: u.role, active: !!u.active })),
+      safeToRetry: true, signal,
+    });
   };
 
   const listTechnicians = async (signal?: AbortSignal) => {
