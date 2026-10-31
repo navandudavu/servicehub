@@ -97,7 +97,7 @@ public class NalogStatsService {
         List<CalendarEntry> out = new ArrayList<>();
         for (Object[] r : rows(q)) {
             out.add(new CalendarEntry(((Number) r[0]).longValue(), (String) r[1], (String) r[2],
-                    ((java.sql.Timestamp) r[3]).toInstant(), (String) r[4], (String) r[5], (String) r[6]));
+                    DbTime.toInstant(r[3]), (String) r[4], (String) r[5], (String) r[6]));
         }
         return out;
     }

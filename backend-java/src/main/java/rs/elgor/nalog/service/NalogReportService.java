@@ -127,7 +127,7 @@ public class NalogReportService {
     }
 
     private static String when(Object o) {
-        return o == null ? "" : DATE_TIME.format(((Timestamp) o).toInstant());
+        return o == null ? "" : DATE_TIME.format(DbTime.toInstant(o));
     }
 
     /**
