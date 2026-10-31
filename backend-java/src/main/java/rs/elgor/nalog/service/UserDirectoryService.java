@@ -8,10 +8,12 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import rs.elgor.nalog.domain.AuthUser;
+import rs.elgor.nalog.dto.UserSyncItem;
+
+import java.util.List;
 
 /**
- * Keeps app_user in step with the JWTs we see. Best-effort by design: if this write
- * fails, the request it belongs to must still succeed.
+ * Keeps app_user in step with the Node-owned ServiceHub accounts.
  */
 @Service
 public class UserDirectoryService {
@@ -52,23 +54,38 @@ public class UserDirectoryService {
           .executeUpdate();
     }
 
-    /** Admin-triggered refresh of the whole directory from the Node team list (also picks up deactivations). */
+    /**
+     * Reconcile the Java directory against a complete snapshot from Node's /api/users.
+     * Users missing from the snapshot are deactivated, not deleted, so existing nalog
+     * assignments and audit references remain intact.
+     */
     @Transactional
-    public int sync(java.util.List<rs.elgor.nalog.dto.UserSyncItem> items) {
-        int n = 0;
-        for (rs.elgor.nalog.dto.UserSyncItem u : items) {
+    public int sync(List<UserSyncItem> items) {
+        if (items == null || items.isEmpty()) {
+            throw NalogException.invalid("The user sync snapshot is empty; refusing to deactivate the directory");
+        }
+
+        // The Node user table is authoritative. Anything not present in this full snapshot
+        // is no longer a valid account and must not remain assignable in the nalog service.
+        em.createNativeQuery("UPDATE app_user SET active = FALSE").executeUpdate();
+
+        int synced = 0;
+        for (UserSyncItem u : items) {
             String role = u.role().toLowerCase();
-            if (!role.equals("admin") && !role.equals("technician")) continue;   // CHECK-constrained column
+            if (!role.equals("admin") && !role.equals("technician")) {
+                continue; // app_user has a CHECK constraint on role
+            }
             em.createNativeQuery(
                     "INSERT INTO app_user (id, name, role, active, last_seen_at) VALUES (:id, :name, :role, :active, now()) "
-                  + "ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, role = EXCLUDED.role, active = EXCLUDED.active")
+                  + "ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, role = EXCLUDED.role, "
+                  + "active = EXCLUDED.active, last_seen_at = now()")
               .setParameter("id", u.id())
               .setParameter("name", u.name())
               .setParameter("role", role)
               .setParameter("active", u.active())
               .executeUpdate();
-            n++;
+            synced++;
         }
-        return n;
+        return synced;
     }
 }

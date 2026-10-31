@@ -26,6 +26,7 @@ export default function NalozList() {
   const [assignedTo, setAssignedTo] = useState('');
   const [page, setPage] = useState(0);
   const [technicians, setTechnicians] = useState<TechnicianView[]>([]);
+  const [technicianError, setTechnicianError] = useState('');
   const [data, setData] = useState<PageResponse<NalogSummary> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -38,7 +39,11 @@ export default function NalozList() {
   useEffect(() => {
     if (!isAdmin) return;
     const ctrl = new AbortController();
-    nalogApi.listTechnicians(ctrl.signal).then(setTechnicians).catch(() => { /* filter just stays empty */ });
+    nalogApi.listTechnicians(ctrl.signal).then(setTechnicians).catch((e) => {
+      if (!ctrl.signal.aborted && !(e instanceof NalogApiError && e.message === 'Request cancelled')) {
+        setTechnicianError(e instanceof Error ? e.message : 'Technician list refresh failed');
+      }
+    });
     return () => ctrl.abort();
   }, [isAdmin]);
 
@@ -87,6 +92,12 @@ export default function NalozList() {
           </select>
         )}
       </div>
+
+      {technicianError && (
+        <div role="alert" style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 12 }}>
+          {`Unable to refresh technician list: ${technicianError}`}
+        </div>
+      )}
 
       {error && (
         <div role="alert" style={{ background: '#FBEAE5', color: 'var(--danger)', padding: '10px 14px', borderRadius: 4, marginBottom: 16, fontSize: 13 }}>

@@ -61,7 +61,7 @@ router.get('/', requireAuth, (req, res) => {
     `;
     const params = [];
 
-    if (req.user.role === 'technician' && !all) {
+    if (req.user.role === 'technician') {
         query += ' AND j.assigned_to = ?';
         params.push(req.user.id);
     }
@@ -77,6 +77,9 @@ router.get('/', requireAuth, (req, res) => {
 router.get('/:id', requireAuth, (req, res) => {
     const job = jobWithDetails(req.params.id);
     if (!job) return res.status(404).json({ error: 'Job not found' });
+    if (req.user.role === 'technician' && job.assigned_to !== req.user.id) {
+        return res.status(403).json({ error: 'This job is not assigned to you' });
+    }
     res.json(job);
 });
 
@@ -183,6 +186,9 @@ router.patch('/:id/status', requireAuth, (req, res) => {
     if (req.user.role === 'technician' && job.assigned_to !== req.user.id) {
         return res.status(403).json({ error: 'This job is not assigned to you' });
     }
+    if (status === 'cancelled' && req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Only administrators can cancel jobs' });
+    }
 
     if (status === 'finished') {
         db.prepare(
@@ -246,8 +252,11 @@ router.post('/:id/notes', requireAuth, (req, res) => {
     const { note } = req.body;
     if (!note || !note.trim()) return res.status(400).json({ error: 'note text is required' });
 
-    const job = db.prepare('SELECT id FROM jobs WHERE id = ?').get(req.params.id);
+    const job = db.prepare('SELECT id, assigned_to FROM jobs WHERE id = ?').get(req.params.id);
     if (!job) return res.status(404).json({ error: 'Job not found' });
+    if (req.user.role === 'technician' && job.assigned_to !== req.user.id) {
+        return res.status(403).json({ error: 'This job is not assigned to you' });
+    }
 
     db.prepare(
         'INSERT INTO job_notes (job_id, author_id, note) VALUES (?, ?, ?)'
@@ -430,7 +439,7 @@ router.get('/calendar/range', requireAuth, (req, res) => {
         WHERE j.scheduled_at IS NOT NULL
     `;
     const params = [];
-    if (req.user.role === 'technician' && !all) {
+    if (req.user.role === 'technician') {
         query += ' AND j.assigned_to = ?';
         params.push(req.user.id);
     }
@@ -460,7 +469,7 @@ router.delete('/:id', requireAuth, (req, res) => {
 });
 
 // Bulk delete jobs
-router.post('/bulk-delete', requireAuth, (req, res) => {
+router.post('/bulk-delete', requireAuth, requireRole('admin'), (req, res) => {
     const { ids } = req.body;
     if (!Array.isArray(ids) || ids.length === 0) {
         return res.status(400).json({ error: 'ids array is required' });
@@ -477,7 +486,7 @@ router.post('/bulk-delete', requireAuth, (req, res) => {
 });
 
 // Bulk status update
-router.post('/bulk-status', requireAuth, (req, res) => {
+router.post('/bulk-status', requireAuth, requireRole('admin'), (req, res) => {
     const { ids, status } = req.body;
     if (!Array.isArray(ids) || ids.length === 0 || !VALID_STATUSES.includes(status)) {
         return res.status(400).json({ error: 'Valid ids array and status required' });
@@ -490,7 +499,7 @@ router.post('/bulk-status', requireAuth, (req, res) => {
 });
 
 // Bulk assign technician
-router.post('/bulk-assign', requireAuth, (req, res) => {
+router.post('/bulk-assign', requireAuth, requireRole('admin'), (req, res) => {
     const { ids, assigned_to } = req.body;
     if (!Array.isArray(ids) || ids.length === 0) {
         return res.status(400).json({ error: 'Valid ids array required' });
