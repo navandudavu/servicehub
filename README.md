@@ -1,118 +1,129 @@
-# ServiceHub — v3
+# ELGOR ServiceHub
 
-Alat za praćenje poslova/mušterija/uređaja za servisnu firmu. Web kontrolna tabla + API, dvojezičan (engleski/srpski), sa otpremanjem fotografija, zakazivanjem preko kalendara, kontrolnom tablom sa statistikom, praćenjem radnih sati, CSV izvozom i potpunim upravljanjem evidencijom.
+Interni alat firme ELGOR (Kruševac) za vođenje servisa bele tehnike i klima uređaja: radni nalozi, klijenti, serviseri, fotografije sa terena, kalendar i izveštaji. Dvojezičan (srpski/engleski), za administratore i servisere.
 
-## Šta zapravo radi
+> Stanje: u razvoju, još nije u produkciji. Pre prave upotrebe pročitajte odeljke **Bezbednost** i **Šta još nedostaje**.
 
-- Prijavljivanje sa ulogama: `admin` i `technician`
-- Prebacivanje jezika (EN/SR) — čuva se za svaki pregledač, može se promeniti sa ekrana za prijavu ili iz bočne trake u bilo kom trenutku
-- Administratori: kreiraju poslove, upravljaju mušterijama/uređajima, dodeljuju tehničare, upravljaju timom, vide sve poslove, resetuju bilo čiju lozinku, brišu mušterije/članove tima (uz bezbednosne provere — pogledajte ispod), izvoze CSV
-- Tehničari: vide poslove koji su im dodeljeni, pomeraju ih kroz statuse
-  pending → assigned → in_progress → finished, dodaju beleške, otpremaju fotografije,
-  evidentiraju odrađene sate, menjaju sopstvenu lozinku
-- Svaka promena statusa se evidentira zajedno sa informacijom ko ju je promenio i kada
-- Tabla poslova je kanban prikaz po statusima, sa prikazom evidentiranih sati za svaki posao
-- Kalendar: nedeljni prikaz zakazanih poslova, klik vodi direktno na posao
-- Kontrolna tabla: broj otvorenih/nedodeljenih/hitnih poslova, završeni ove nedelje, poslovi po tehničaru, evidentirani sati po tehničaru (ukupno + poslednjih 7 dana), CSV izvoz svih podataka o poslovima jednim klikom
-- Otpremanje fotografija uz poslove (maks. 8 MB, JPEG/PNG/WEBP/HEIC), sa lightbox prikazom u punoj veličini, mogućnost brisanja od strane osobe koja je fotografiju otpremila ili administratora (uz potvrdu)
-- Praćenje sati po poslu — dodeljeni tehničar ili administrator evidentira decimalni broj sati (npr. 2.5) za svaki posao; ukupni sati se sabiraju na kontrolnoj tabli i u CSV izvozu
-- Brisanje mušterija i članova tima — ali samo kada je bezbedno. Pogledajte ispod.
+## Od čega se sastoji
 
-## Pravila bezbednog brisanja
+| Deo | Tehnologija | Folder | Port (razvoj) |
+|---|---|---|---|
+| Web aplikacija | React + Vite (JS i TypeScript) | `frontend/` | 5173 |
+| Stari API (poslovi, klijenti, tim, prijava) | Node + Express + SQLite | `backend/` | 4000 |
+| **Servis za radne naloge** | Java 17 + Spring Boot 3 + PostgreSQL | `backend-java/` | 8081 |
+| Uvoz starih poslova u nove naloge | Node skripta | `tools/` | – |
+| Android aplikacija za servisere | Kotlin + Jetpack Compose | *nije u ovom repozitorijumu* | – |
 
-Trajno brisanje je dozvoljeno samo kada ne može neprimetno da uništi istoriju:
+Prijava je **jedna**: Node izdaje JWT token, a Java servis ga samo proverava (isti `JWT_SECRET` u oba). Nalozi i novac žive isključivo u Javi/PostgreSQL-u; Node ostaje za prijavu, tim, klijente i stare poslove.
 
-- **Mušterije**: brisanje je blokirano ako imaju bilo kakve poslove u evidenciji (njihovo brisanje bi kaskadno obrisalo celu istoriju tih poslova — pogledajte šemu). Prvo obrišite njihove poslove ako ste sigurni, ili jednostavno ostavite evidenciju mušterije kakva jeste.
-- **Članovi tima**: brisanje je blokirano ako imaju bilo kakvu istoriju poslova (dodeljene poslove, beleške ili fotografije). Ne možete obrisati sebe i ne možete obrisati poslednjeg aktivnog administratora. Umesto toga koristite Deaktiviraj za svakoga ko ima istoriju — tako evidencija ostaje netaknuta, dok se uklanja njihova mogućnost prijavljivanja.
+Vite razvojni server prosleđuje `/api/nalozi` i `/api/parts` na Javu (8081), a sve ostalo pod `/api` na Node (4000). U produkciji isto radi reverzni proksi (primer: `Caddyfile` u paketu za postavljanje).
 
-Svako od ovih pravila se primenjuje na serverskoj strani, a ne samo skrivanjem u korisničkom interfejsu, i sva su testirana na pokrenutom API-ju, uključujući granične slučajeve (brisanje samog sebe, poslednji administrator, pogrešne dozvole).
+## Radni nalog (nalog)
 
-## Tehnološki stack
+Svaki nalog beleži: klijenta (ime, adresa, telefon, napomene o lokaciji), uređaj (tip, marka, model, serijski broj), dijagnozu, ugrađene delove iz magacina, sate rada, način plaćanja (gotovina / kartica / virman) i status.
 
-- Backend: Node + Express + SQLite (preko better-sqlite3), JWT autentifikacija, multer za otpremanje fajlova
-- Frontend: React + Vite, bez UI frameworka, običan CSS sa dizajnerskim tokenima, mali ručno napravljen i18n sloj (bez spoljne i18n biblioteke — samo rečnik + React context, pogledajte `frontend/src/i18n/`)
-- Otpremnjene fotografije se čuvaju na disku u `backend/data/uploads/`, a metapodaci u SQLite-u — ne čuvaju se kao blobovi u bazi podataka
-- Nisu potrebni spoljni servisi — SQLite je jedan fajl na disku, nema ničega što treba dodatno podesiti
+**Statusi:** Nacrt → Dodeljen → U toku ⇄ Čeka delove → Završen. Otkazivanje samo administrator; vraća delove na stanje. Završen i otkazan nalog su konačni.
 
-## Pokretanje lokalno
+**Pravila koja server sam sprovodi (ne samo interfejs):**
+- **Novac se računa isključivo u Javi** (`BigDecimal`, zaokruživanje `HALF_UP`, 2 decimale); frontend samo šalje količine i prikazuje rezultat, a iznosi putuju kao stringovi (`"7462.92"`), nikad kao decimalni brojevi.
+- Svaka izmena podataka je u jednoj transakciji sa potpunim vraćanjem (npr. oduzimanje delova + upis naloga + istorija statusa).
+- Dva servisera ne mogu uzeti poslednji deo istovremeno (zaključavanje redova, redosled po id-ju bez zastoja); drugi dobija jasnu grešku 409.
+- Ponovljeno slanje istog formulara ne pravi dupli nalog (`Idempotency-Key`).
+- Serviser vidi samo naloge dodeljene njemu ili koje je sam napravio; tuđi nalog daje 404.
+- Greške su u RFC 7807 obliku, bez internih detalja.
 
-Potrebno je da imate instaliran Node.js (v18+, ovo je napravljeno i testirano na v22).
+**Fotografije na nalogu:** JPEG/PNG/WebP do 10 MB, vrsta se određuje po stvarnom sadržaju fajla (ne po imenu), čuvaju se na disku pod nasumičnim imenom (`NALOG_PHOTOS_DIR`), vide se samo uz prijavu. Kategorije: pre / posle / nalepnica / ostalo. Brisanje: administrator ili osoba koja je otpremila. Android aplikacija pre slanja smanjuje sliku (najviše 1920 px, JPEG).
 
-### 1. Backend
+**U grani `claude/dashboard-reports-cleanup` (do spajanja sa `master`):**
+- Kontrolna tabla i Kalendar čitaju nove naloge; administrator zakazuje planirani dolazak na stranici naloga.
+- **Izveštaji** (samo administrator): promet završenih naloga po serviseru / mesecu / načinu plaćanja i CSV izvoz (tačka-zarez, decimalni zarez, otvara se u srpskom Excelu).
+- `.gitignore` i uklanjanje tajnih/ličnih fajlova iz praćenja.
 
+## Java API (`/api/nalozi`, `/api/parts`)
+
+| Metoda | Putanja | Ko |
+|---|---|---|
+| POST | `/api/nalozi` | svi (serviser: automatski dodeljen sebi) |
+| POST | `/api/nalozi/preview` | svi – cena bez čuvanja |
+| GET | `/api/nalozi`, `/{id}`, `/{id}/history` | svi (po pravilu pristupa) |
+| PATCH | `/api/nalozi/{id}/status` | svi (otkazivanje: admin) |
+| PATCH | `/api/nalozi/{id}/assign` | admin |
+| GET/POST/DELETE | `/api/nalozi/{id}/photos[/{photoId}/file]` | po pravilu pristupa |
+| GET | `/api/nalozi/customers`, `/technicians` | svi / admin |
+| POST | `/api/nalozi/users/sync` | admin – prenosi tim iz Node-a |
+| GET | `/api/parts` (+ izmene) | svi čitaju / admin menja |
+| GET | `/api/nalozi/stats`, `/calendar`, PATCH `/{id}/schedule`, GET `/reports/*` | *u grani, vidi iznad* |
+
+## Pokretanje lokalno (Windows)
+
+Potrebno: Node.js 22, JDK 17+, Maven, PostgreSQL 16.
+
+**1. PostgreSQL** – napravite korisnika i bazu:
+```sql
+CREATE USER nalog WITH PASSWORD 'dev';
+CREATE DATABASE nalog OWNER nalog;
+```
+Tabele pravi Flyway sam pri prvom pokretanju Java servisa.
+
+**2. Node API**
 ```bash
 cd backend
 npm install
-cp .env.example .env          # opciono za lokalni razvoj, podrazumevane vrednosti rade
-node src/db/seed.js you@example.com yourpassword "Your Name"
+cp .env.example .env        # postavite JWT_SECRET (min. 32 znaka, nasumično)
+node src/db/seed.js you@example.com lozinka "Vaše Ime"   # prvi administrator
 node src/server.js
 ```
 
-Seed skripta kreira vaš prvi administratorski nalog — to je jedini način da dobijete prijavu, pošto nema javne registracije (namerno, ovo je interni alat). Možete je ponovo pokrenuti sa drugačijim argumentima da napravite još administratora ako želite; neće duplirati postojeću email adresu.
+**3. Java servis** (isti `JWT_SECRET` kao u Node `.env`):
+```bat
+set NALOG_DB_URL=jdbc:postgresql://localhost:5432/nalog
+set NALOG_DB_USER=nalog
+set NALOG_DB_PASSWORD=dev
+set JWT_SECRET=<ista vrednost kao u backend\.env>
+cd backend-java
+mvn test
+mvn spring-boot:run
+```
 
-Ako prelazite sa starije kopije ovog projekta koja već ima postojeći fajl `backend/data/servicehub.db`, nema problema — backend automatski dodaje sve nove kolone baze podataka koje su mu potrebne prilikom pokretanja (mala provera migracije u `src/db/index.js`), tako da ne morate brisati postojeće podatke. Potvrđeno je da radi sa stvarnom bazom podataka pre nadogradnje tokom razvoja, a ne samo sa potpuno novom.
-
-Backend radi na `http://localhost:4000`.
-
-### 2. Frontend
-
-U drugom terminalu:
-
+**4. Frontend**
 ```bash
 cd frontend
 npm install
-npm run dev
+npm run dev        # http://localhost:5173
 ```
 
-Otvara se na `http://localhost:5173`. Vite razvojni server prosleđuje `/api/*` zahteve backendu na portu 4000 (pogledajte `vite.config.js`), tako da oba moraju biti pokrenuta.
+Za Android uređaj: računar i telefon u istoj mreži, Windows zaštitni zid mora propuštati portove 4000 i 8081; u aplikaciji se unosi adresa Node servera (`http://IP:4000`), a adresa Java servisa se izvodi iz nje (isti računar, port 8081).
 
-Prijavite se koristeći email/lozinku koje ste prosledili seed skripti.
+## Uvoz starih poslova
 
-### 3. Isprobajte
+Stari poslovi iz SQLite-a mogu se preneti u nove naloge (samo čitanje stare baze, jedna transakcija, može se ponoviti bez duplikata):
+```bash
+node tools/migrate-sqlite-to-postgres.js --db backend/data/servicehub.db --out import.sql --labor-rate 2500.00
+psql -U nalog -h localhost -d nalog -v ON_ERROR_STOP=1 -f import.sql
+```
+Poslovi bez klijenta ulaze pod klijenta „Nepoznat klijent“. Stari poslovi dobijaju **probnu** cenu rada i PDV (vidi dole) – proverite ih. `import.sql` sadrži podatke klijenata i ne sme u git.
 
-- Prebacite EN/SR sa ekrana za prijavu ili bočne trake — sve se menja osim podataka koje ste sami uneli (imena mušterija, naslovi poslova koje ste ukucali itd. — to su vaši podaci, a ne elementi korisničkog interfejsa, tako da ostaju onako kako ste ih ukucali bez obzira na jezik)
-- Kao administrator, idite na Team → dodajte tehničara
-- Idite na Customers → dodajte mušteriju → dodajte joj uređaj
-- Idite na Job Board → New job → izaberite tu mušteriju, napišite naslov, dodelite tehničara, opciono postavite termin
-- Otvorite posao → otpremite fotografiju, dodajte belešku, evidentirajte odrađene sate
-- Proverite stranice Dashboard (sati po tehničaru, dugme za CSV izvoz) i Calendar
-- Odjavite se, ponovo se prijavite kao tehničar (koristeći lozinku koju ste mu postavili), gledajte kako se posao pojavljuje na njegovoj tabli, provucite ga kroz statuse, sami evidentirajte sate na njemu
-- Isprobajte Team → Reset password za tehničara, a zatim posebno kliknite na sopstveno ime u bočnoj traci da promenite sopstvenu lozinku
-- Pokušajte da obrišete novu mušteriju/tehničara bez istorije poslova (radi), zatim pokušajte da obrišete nekoga ko ima istoriju poslova (blokirano, uz objašnjenje) — to je bezbednosno pravilo koje radi kako je zamišljeno, a ne greška
+## Bezbednost
 
-## Šta OVDE NIJE uključeno
+- **Nikad ne komitujte tajne.** `.env` i `firebase-service-account.json` ostaju samo na računaru/serveru (vidi `.gitignore` u grani). Ključ za Firebase se čita iz fajla `backend/firebase-service-account.json`, ne iz `.env`.
+- Ako je tajni ključ ikada bio u javnom repozitorijumu, **opozovite ga i napravite novi** – brisanje fajla ne uklanja ga iz istorije.
+- `JWT_SECRET`: dug, nasumičan, isti u oba servisa, drugačiji u produkciji nego u razvoju.
+- Prijava je ograničena na 8 neuspešnih pokušaja po IP adresi i email-u u 15 minuta.
+- Otkazani nalog ne prima fotografije; deaktiviran korisnik zadržava važeći token do isteka (12 h).
+- Android izdanje za produkciju: bez nešifrovanog HTTP-a, prava adresa servera umesto razvojne IP adrese.
 
-- Android aplikacija — ovo je samo web. API je spreman za nju (JSON + JWT), ali još ne postoji Kotlin kod.
-- Interni chat — koristite WhatsApp/Viber, nemojte ponovo praviti Slack
-- Push obaveštenja
-- Samouslužno „zaboravljena lozinka“ putem emaila — nema email servera. Administratori direktno resetuju lozinke (stranica Team); vi sami saopštite osobi novu privremenu lozinku.
-- Pravo postavljanje na server — ovo trenutno radi samo na localhost-u. Niko osim vas ne može da mu pristupi i prestaje da radi kada je vaš računar ugašen.
-- Evidencija smena sa prijavljivanjem/odjavljivanjem — sati se evidentiraju po poslu, a ne kao evidencija radnog vremena. Ako odlučite da zaista želite i praćenje rada po smenama, to je druga funkcionalnost, a ne proširenje ove.
+## Šta još nedostaje
 
-## Poznate grube ivice
+- **Pravi izgled radnog naloga za štampu** (sada je probni) i **podaci firme** (PIB, MB, telefon, račun) u `frontend/src/print/company.ts`.
+- **Prava cena rada i PDV** – sada probno 2500 RSD/h i 20 % u `backend-java/src/main/resources/application.yml`.
+- Stranica za magacin/delove (API postoji, strane još nema); beleške na nalozima; premeštanje starih fotografija poslova u nove naloge.
+- Automatski testovi Java servisa (istovremeno uzimanje poslednjeg dela, vraćanje transakcije, ponovljeno slanje, pristup po ulozi). Do sada je proveravano ručno i na pravoj PostgreSQL bazi, a Java kod je kompajliran i testiran samo na računaru vlasnika.
+- Postavljanje na server (Docker + Caddy), noćni backup (baza **i** folder sa fotografijama), HTTPS.
+- Evidencija radnog vremena po smenama nije uključena (sati se vode po nalogu).
 
-- Podrazumevani JWT_SECRET u kodu je rezervisana vrednost. U redu je za lokalni razvoj, ali NIJE u redu ako ovo ikada postavite na pravi server kojem ljudi mogu pristupiti. Postavite pravi u `.env`.
-- Nema automatizovanih testova. Sve je provereno ručno stvarnim pokretanjem API-ja od početka do kraja tokom razvoja (uključujući problematične slučajeve — pogrešne lozinke, granice dozvola, loše tipove fajlova, zaštitu poslednjeg administratora, blokiranje brisanja samog sebe) — radi, ali nema zaštitne mreže protiv regresija ako počnete sami da ga menjate.
-- SQLite je zaista sasvim dobar za malu porodičnu firmu (jedan fajl, bez administriranja), ali se NEĆE skalirati na veliko istovremeno opterećenje upisivanjem od mnogo korisnika. Pri vašem verovatnom obimu to nije problem.
-- Otpremnjene fotografije se čuvaju na disku, nešifrovane, bez skeniranja na viruse, bez promene veličine/kompresije slika — tehničar koji više puta otprema fotografije telefona u punoj rezoluciji popuniće prostor na disku brže nego što biste očekivali pri većem obimu. U redu za mali tim; vredi znati.
-- Ovo je provereno kompiliranjem i API je opsežno testiran, uključujući stvarnu Vite proxy putanju koju pregledač koristi, ali nije ručno prođeno od početka do kraja u stvarnom pregledaču od strane čoveka (u okruženju u kojem je ovo napravljeno nije bio dostupan pregledač). Sami prođite kroz aplikaciju, posebno kroz tokove otpremanja fotografija, evidentiranja sati i CSV izvoza, pre nego što joj poverite stvarne podatke.
-- Srpski prevodi su funkcionalni, napisala ih je osoba koja je ovo pravila (ja, AI, koji prevodi bez provere izvornog govornika) — dovoljno su dobri za korišćenje, ali ako nešto zvuči nezgrapno stvarnom govorniku srpskog jezika, to je očekivano i vredi popraviti. Svi stringovi se nalaze u jednom fajlu: `frontend/src/i18n/translations.js`.
-- Evidentirani sati su običan decimalni broj po poslu, koji se ne proverava u odnosu na bilo šta drugo (npr. neće upozoriti ako neko evidentira 40 sati na jednom poslu). To je namerna jednostavnost, a ne propust — označite ako kasnije želite strožu validaciju.
+## Napomene o razvoju
 
-## Značajne greške na koje se naišlo i koje su popravljene tokom razvoja
-
-Dokumentovano ovde kako biste znali da je kodna baza zaista korišćena i testirana, a ne samo napisana i pretpostavljena kao ispravna:
-
-- SQLite dvostruko navodnike u SQL-u čita kao identifikatore kolona, a ne kao string literale. Dva odvojena upita (`datetime("now")` i `CASE WHEN "urgent" THEN...` sortiranje prioriteta) koristila su dvostruke navodnike i rušila se tokom izvršavanja. Oba su popravljena na jednostruke navodnike i oba su ponovo testirana.
-- URL-ovi fotografija zahtevaju JWT auth zaglavlje da bi se učitali (backend ih štiti prijavom), što običan `<img src="...">` tag ne može da pošalje. Napravljena je mala komponenta koja preuzima sliku kao blob sa auth zaglavljem i zatim je pretvara u object URL. CSV izvoz ima isti problem i koristi isto rešenje (preuzimanje kao blob, ručno pokretanje preuzimanja).
-- Usred razvoja, automatizovana izmena fajla Team.jsx slučajno je obrisala početnu liniju deklaracije funkcije, ostavljajući izdvojeni kod bez funkcije koja ga obuhvata — odmah je primećeno jer kompajliranje nije uspelo, a ne zato što je izgledalo pogrešno. Popravljeno i ponovo provereno.
-- Tokom dodavanja polja za unos evidentiranja sati u prikaz detalja posla, izmena je slučajno obrisala uslov koji je ograničavao dodeljivanje tehničara samo administratorima — to bi omogućilo tehničarima da ponovo dodeljuju poslove sami sebi. Primećeno ručnom proverom logike nakon izmene, a ne kompajliranjem (koje je u svakom slučaju prošlo, jer je uslov bio validan ali pogrešan, a ne sintaksna greška). Popravljeno i ponovo provereno.
-- `.btn-secondary` (koji se koristi za većinu dugmadi koja nisu primarna) nije imao sopstveni padding — svaka upotreba širom aplikacije to je nadoknađivala jednokratnim inline paddingom, zbog čega je razmak postao nedosledan. Popravljeno je tako što je klasi data stvarna podrazumevana veličina, a zatim je trebalo osigurati da nove klase modifikatora veličine `.btn-sm`/`.btn-xs` budu deklarisane *posle* nje u stylesheet-u — CSS pravila jednake specifičnosti primenjuju se prema redosledu u fajlu, a ne prema redosledu JSX klasa, tako da bi njihovo deklarisanje pogrešnim redosledom neprimetno učinilo modifikatore veličine beskorisnim. Provereno pregledanjem stvarnog kompajliranog CSS izlaza, a ne samo pretpostavkom da je redosled iz izvornog koda sačuvan tokom kompajliranja.
-- Nova komponenta za prazno stanje korišćena je u Customers.jsx bez dodavanja importa — ovo NIJE srušilo kompajliranje (React/JSX bundlovanje ne hvata uvek statički referencu na nedefinisanu komponentu onako kako biste očekivali), tako da bi standardna provera „kompajliranje je prošlo“ ovo propustila. Primećeno je eksplicitnom proverom liste importa u odnosu na sve što se koristi u fajlu. Vredi znati ako ovde budete pisali još koda: uspešno kompajliranje je neophodan, ali ne i dovoljan dokaz da se komponenta zaista pravilno razrešava.
-
-## Ako želite da nastavite sa razvojem
-
-1. Sami prođite kroz aplikaciju, pronađite šta vas nervira, prvo popravite to
-2. Postavite je negde gde joj se može pristupiti (mali VPS, Railway, Render — bilo šta što može da pokreće Node i trajno čuva fajl i folder sa otpremljenim fotografijama)
-3. Kompresija/promena veličine slika prilikom otpremanja, ako skladištenje fotografija postane problem
-4. Tek onda: Android aplikacija, tim redosledom prema uloženom trudu u odnosu na korist
+- Srpski prevodi su pisani bez provere izvornog govornika; svi stringovi su u `frontend/src/i18n/translations.js`.
+- Novac u interfejsu: samo prikaz (`print/formatMoney.ts` radi sa stringovima, bez pretvaranja u broj).
+- Datumi: Java čuva trenutke u UTC-u; nedelja i meseci u izveštajima računaju se po vremenu Europe/Belgrade.
+- SQLite i Node API ostaju dok se ne odluči da li se Node potpuno gasi.
