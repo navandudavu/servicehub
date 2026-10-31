@@ -391,6 +391,19 @@ public class NalogService {
         }
     }
 
+    /** Admin: set or clear the planned visit. Closed nalozi are history and cannot be rescheduled. */
+    @Transactional(rollbackFor = Exception.class)
+    public NalogResponse setSchedule(Long id, Instant scheduledAt, AuthUser actor) {
+        Nalog n = nalogRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> NalogException.notFound("Nalog " + id + " not found"));
+        requireAccess(n, actor);
+        if (n.getStatus() == NalogStatus.COMPLETED || n.getStatus() == NalogStatus.CANCELLED) {
+            throw NalogException.conflict("A completed or cancelled nalog cannot be rescheduled");
+        }
+        n.setScheduledAt(scheduledAt);
+        return NalogResponse.from(n);
+    }
+
     /** For sibling services (photos): loads the nalog and applies the SAME access rule as everything else. */
     @Transactional(readOnly = true)
     public Nalog loadAccessible(Long id, AuthUser actor) {

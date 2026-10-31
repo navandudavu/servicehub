@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
-import { api } from '../api/client';
-import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { nalogApi } from '../api/nalog';
 import { useLang } from '../i18n/LangContext';
-import JobModal from '../components/JobModal';
+import { NalogStatusTag } from '../components/NalogStatusTag';
 
 function startOfWeek(date) {
   const d = new Date(date);
@@ -19,49 +19,51 @@ function addDays(date, n) {
   return d;
 }
 
+// LOCAL calendar date (not toISOString, which is UTC and would shift evening visits to the wrong day)
 function toDateKey(date) {
-  return date.toISOString().slice(0, 10);
+  const p2 = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${p2(date.getMonth() + 1)}-${p2(date.getDate())}`;
 }
 
+// Planned visits come from the nalog service (GET /api/nalozi/calendar). Admins see everyone's,
+// technicians only their own - the server decides, not this page.
 export default function Calendar() {
-  const { user } = useAuth();
   const { t, lang, dayLabels } = useLang();
+  const navigate = useNavigate();
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
-  const [jobs, setJobs] = useState([]);
+  const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [selectedJob, setSelectedJob] = useState(null);
-  const [showAll, setShowAll] = useState(user?.role === 'admin');
 
-  const weekEnd = addDays(weekStart, 6);
-
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal) => {
     setLoading(true);
     try {
-      const from = toDateKey(weekStart);
-      const to = toDateKey(addDays(weekEnd, 1)); // inclusive of the last day
-      const data = await api.jobs.calendarRange(from, to, showAll);
-      setJobs(data);
+      const from = weekStart.toISOString();
+      const to = addDays(weekStart, 7).toISOString();
+      setEntries(await nalogApi.getCalendar(from, to, signal));
       setError('');
     } catch (err) {
-      setError(err.message);
+      if (err.message !== 'Request cancelled') setError(err.message);
     } finally {
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [weekStart, showAll]);
+  }, [weekStart]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const ctrl = new AbortController();
+    load(ctrl.signal);
+    return () => ctrl.abort();
+  }, [load]);
 
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-  const jobsByDay = {};
-  days.forEach((d) => { jobsByDay[toDateKey(d)] = []; });
-  jobs.forEach((j) => {
-    const key = j.scheduled_at.slice(0, 10);
-    if (jobsByDay[key]) jobsByDay[key].push(j);
+  const byDay = {};
+  days.forEach((d) => { byDay[toDateKey(d)] = []; });
+  entries.forEach((e) => {
+    const key = toDateKey(new Date(e.scheduledAt));
+    if (byDay[key]) byDay[key].push(e);
   });
 
-  const localeTag = lang === 'sr' ? 'sr-RS' : undefined;
+  const localeTag = lang === 'sr' ? 'sr-Latn-RS' : undefined;
   const monthLabel = weekStart.toLocaleDateString(localeTag, { month: 'long', year: 'numeric' });
   const today = toDateKey(new Date());
 
@@ -73,20 +75,9 @@ export default function Calendar() {
           <div style={{ fontSize: 13, color: 'var(--stone)' }}>{monthLabel}</div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {user?.role === 'admin' && (
-            <button className="btn-secondary btn-sm" onClick={() => setShowAll(!showAll)}>
-              {showAll ? t('calendar_showMine') : t('calendar_showAll')}
-            </button>
-          )}
-          <button className="btn-secondary btn-sm" onClick={() => setWeekStart(addDays(weekStart, -7))}>
-            {t('calendar_prev')}
-          </button>
-          <button className="btn-secondary btn-sm" onClick={() => setWeekStart(startOfWeek(new Date()))}>
-            {t('calendar_today')}
-          </button>
-          <button className="btn-secondary btn-sm" onClick={() => setWeekStart(addDays(weekStart, 7))}>
-            {t('calendar_next')}
-          </button>
+          <button className="btn-secondary btn-sm" onClick={() => setWeekStart(addDays(weekStart, -7))}>{t('calendar_prev')}</button>
+          <button className="btn-secondary btn-sm" onClick={() => setWeekStart(startOfWeek(new Date()))}>{t('calendar_today')}</button>
+          <button className="btn-secondary btn-sm" onClick={() => setWeekStart(addDays(weekStart, 7))}>{t('calendar_next')}</button>
         </div>
       </div>
 
@@ -100,25 +91,26 @@ export default function Calendar() {
         {days.map((day, i) => {
           const key = toDateKey(day);
           const isToday = key === today;
-          const dayJobs = jobsByDay[key] || [];
           return (
             <div key={key} className="card" style={{ padding: 10, minHeight: 220, borderColor: isToday ? 'var(--green)' : undefined }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: isToday ? 'var(--green-dark)' : 'var(--stone)', marginBottom: 8 }}>
                 {dayLabels[i]} {day.getDate()}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {dayJobs.map((j) => (
+                {(byDay[key] || []).map((e) => (
                   <button
-                    key={j.id}
-                    onClick={() => setSelectedJob(j.id)}
-                    className={`card priority-${j.priority}`}
+                    key={e.id}
+                    onClick={() => navigate(`/nalozi/${e.id}`)}
+                    className="card"
                     style={{ textAlign: 'left', padding: '6px 8px', fontSize: 11.5, cursor: 'pointer', width: '100%' }}
                   >
                     <div style={{ fontWeight: 500 }}>
-                      {new Date(j.scheduled_at).toLocaleTimeString(localeTag, { hour: '2-digit', minute: '2-digit' })}
+                      {new Date(e.scheduledAt).toLocaleTimeString(localeTag, { hour: '2-digit', minute: '2-digit' })}
                     </div>
-                    <div style={{ color: 'var(--stone)' }}>{j.title}</div>
-                    <div style={{ color: 'var(--stone)' }}>{j.customer_name || t('jobBoard_noCustomer')}</div>
+                    <div style={{ color: 'var(--stone)', fontFamily: 'var(--mono)' }}>{e.nalogNumber}</div>
+                    <div>{e.customerName}</div>
+                    {e.assignedToName && <div style={{ color: 'var(--stone)' }}>{e.assignedToName}</div>}
+                    <div style={{ marginTop: 3 }}><NalogStatusTag status={e.status} /></div>
                   </button>
                 ))}
               </div>
@@ -127,14 +119,8 @@ export default function Calendar() {
         })}
       </div>
 
-      {jobs.length === 0 && !loading && (
-        <div style={{ fontSize: 13, color: 'var(--stone)', marginTop: 16 }}>
-          {t('calendar_noJobs')}
-        </div>
-      )}
-
-      {selectedJob && (
-        <JobModal jobId={selectedJob} onClose={() => setSelectedJob(null)} onChanged={load} />
+      {entries.length === 0 && !loading && (
+        <div style={{ fontSize: 13, color: 'var(--stone)', marginTop: 16 }}>{t('calendar_noJobs')}</div>
       )}
     </div>
   );

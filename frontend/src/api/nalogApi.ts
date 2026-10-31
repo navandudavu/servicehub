@@ -2,7 +2,7 @@ import axios, { AxiosError, AxiosInstance, Method } from 'axios';
 import type {
   ApiProblem, CreateNalogRequest, CustomerView, CreatePartRequest, NalogListQuery, NalogPreview, NalogResponse,
   NalogStatus, NalogSummary, PageResponse, PartResponse, PreviewRequest, StatusHistoryView,
-  StockAdjustRequest, TechnicianView, UpdatePartRequest, PhotoView, PhotoCategory,
+  StockAdjustRequest, TechnicianView, UpdatePartRequest, PhotoView, PhotoCategory, NalogStats, CalendarEntry, ReportSummary,
 } from '../types/nalog';
 
 /** Normalised error: the UI never has to look inside an AxiosError. */
@@ -124,6 +124,26 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized }:
     return send<TechnicianView[]>('GET', '/api/nalozi/technicians', { safeToRetry: true, signal });
   };
 
+  // ---- dashboard / calendar / schedule ----
+  const getStats = (signal?: AbortSignal) =>
+    send<NalogStats>('GET', '/api/nalozi/stats', { safeToRetry: true, signal });
+
+  const getCalendar = (fromIso: string, toIso: string, signal?: AbortSignal) =>
+    send<CalendarEntry[]>('GET', '/api/nalozi/calendar', { params: { from: fromIso, to: toIso }, safeToRetry: true, signal });
+
+  // admin only on the server; null clears the visit
+  const setSchedule = (id: number, scheduledAt: string | null, signal?: AbortSignal) =>
+    send<NalogResponse>('PATCH', `/api/nalozi/${id}/schedule`, { data: { scheduledAt }, safeToRetry: true, signal });
+
+  // ---- reports (admin only on the server) ----
+  const getReportSummary = (fromIso: string, toIso: string, signal?: AbortSignal) =>
+    send<ReportSummary>('GET', '/api/nalozi/reports/summary', { params: { from: fromIso, to: toIso }, safeToRetry: true, signal });
+
+  const fetchReportCsv = (fromIso: string, toIso: string, status?: string) =>
+    send<Blob>('GET', '/api/nalozi/reports/export.csv', {
+      params: { from: fromIso, to: toIso, ...(status ? { status } : {}) }, safeToRetry: true, responseType: 'blob', timeout: 60_000,
+    });
+
   // ---- photos ----
   const listPhotos = (nalogId: number, signal?: AbortSignal) =>
     send<PhotoView[]>('GET', `/api/nalozi/${nalogId}/photos`, { safeToRetry: true, signal });
@@ -159,7 +179,7 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized }:
 
   return {
     newIdempotencyKey, submitNalog, previewNalog, listNalozi, getNalog, getNalogHistory, changeStatus,
-    searchCustomers, assignNalog, listTechnicians, listPhotos, uploadPhoto, deletePhoto, fetchPhotoBlob, searchParts, createPart, updatePart, adjustStock,
+    searchCustomers, assignNalog, listTechnicians, getStats, getCalendar, setSchedule, getReportSummary, fetchReportCsv, listPhotos, uploadPhoto, deletePhoto, fetchPhotoBlob, searchParts, createPart, updatePart, adjustStock,
   };
 }
 

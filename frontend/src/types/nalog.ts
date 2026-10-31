@@ -259,3 +259,45 @@ export interface PhotoView {
   uploadedByName: string | null;
   createdAt: string;
 }
+
+/** Mirrors NalogStats.java (GET /api/nalozi/stats). Hours are strings. */
+export interface NalogStats {
+  open: number;
+  unassigned: number;
+  awaitingParts: number;
+  completedThisWeek: number;
+  byStatus: Array<{ status: NalogStatus; count: number }>;
+  openByTechnician: Array<{ name: string; count: number }>;
+  hoursByTechnician: Array<{ name: string; totalHours: string; hoursThisWeek: string }>;
+}
+
+/** Mirrors CalendarEntry.java (GET /api/nalozi/calendar). */
+export interface CalendarEntry {
+  id: number;
+  nalogNumber: string;
+  status: NalogStatus;
+  scheduledAt: string;
+  customerName: string;
+  applianceType: string | null;
+  assignedToName: string | null;
+}
+
+/** Mirrors ReportSummary.java (GET /api/nalozi/reports/summary, admin only). All decimals are strings. */
+export interface ReportTotals {
+  count: number;
+  laborHours: DecimalString;
+  laborTotal: DecimalString;
+  partsTotal: DecimalString;
+  subtotal: DecimalString;
+  vatAmount: DecimalString;
+  total: DecimalString;
+}
+export interface ReportRow { key: string; totals: ReportTotals }
+export interface ReportSummary {
+  from: string;
+  to: string;
+  totals: ReportTotals;
+  byTechnician: ReportRow[];
+  byMonth: ReportRow[];
+  byPayment: ReportRow[];
+}
