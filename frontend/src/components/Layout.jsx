@@ -23,6 +23,7 @@ export default function Layout({ children }) {
     { to: '/customers', label: t('nav_customers') },
   ];
   const adminNavItems = [
+    { to: '/reports', label: t('nav_reports') },
     { to: '/team', label: t('nav_team') },
   ];
   const items = user?.role === 'admin' ? [...navItems, ...adminNavItems] : navItems;

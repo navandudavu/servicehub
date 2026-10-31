@@ -54,7 +54,7 @@ public record CreateNalogRequest(
             @NotBlank @Size(max = 150) String fullName,
             @NotBlank @Size(max = 255) String address,
             @Size(max = 100) String city,
-            @NotBlank @Size(max = 40) @Pattern(regexp = "^[0-9+()/\\-\\s]{6,40}$", message = "invalid phone number") String phone,
+            @NotBlank @Size(max = 40) @Pattern(regexp = "^[0-9+()/.\\-\\s]{6,40}$", message = "invalid phone number") String phone,
             @Email @Size(max = 150) String email,
             @Size(max = 500) String locationNotes
     ) {}

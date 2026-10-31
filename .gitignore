@@ -1,0 +1,28 @@
+# secrets: never commit these
+.env
+*.env
+!.env.example
+firebase-service-account.json
+*service-account*.json
+
+# databases and uploaded files (customer data)
+*.db
+*.db-wal
+*.db-shm
+backend/data/
+backend/uploads/
+backend-java/data/
+
+# generated import (contains customer data)
+tools/import.sql
+
+# build output / dependencies / logs
+node_modules/
+dist/
+backend-java/target/
+*.log
+out.txt
+
+# IDE
+.idea/
+.vscode/

@@ -37,6 +37,7 @@ export default function NalogDetail() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [visit, setVisit] = useState('');                    // datetime-local value, browser time
 
   const load = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -63,6 +64,13 @@ export default function NalogDetail() {
     if (!isAdmin) return;
     nalogApi.listTechnicians().then(setTechnicians).catch(() => { /* dropdown stays empty */ });
   }, [isAdmin]);
+
+  useEffect(() => {
+    if (!nalog?.scheduledAt) { setVisit(''); return; }
+    const d = new Date(nalog.scheduledAt);
+    const p2 = (n: number) => String(n).padStart(2, '0');
+    setVisit(`${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`);
+  }, [nalog?.scheduledAt]);
 
   async function run(action: () => Promise<NalogResponse>) {
     if (busy) return;
@@ -178,7 +186,22 @@ export default function NalogDetail() {
               <div>{nalog.assignedToName ?? t('nalogDetail_noOne')}</div>
             )}
             <div style={{ marginTop: 12, fontSize: 13, color: 'var(--stone)', display: 'grid', gap: 3 }}>
-              {nalog.scheduledAt && <div>{t('nalogDetail_scheduled')}: {fmtDateTime(nalog.scheduledAt)}</div>}
+              {isAdmin && !closed ? (
+                <div>
+                  <div>{t('nalogDetail_setVisit')}:</div>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                    <input className="input" type="datetime-local" value={visit} onChange={(e) => setVisit(e.target.value)} style={{ flex: 1, minWidth: 170 }} />
+                    <button className="btn btn-sm" disabled={busy || !visit}
+                            onClick={() => run(() => nalogApi.setSchedule(nalog.id, new Date(visit).toISOString()))}>{t('nalogDetail_saveVisit')}</button>
+                    {nalog.scheduledAt && (
+                      <button className="btn-secondary btn-sm" disabled={busy}
+                              onClick={() => run(() => nalogApi.setSchedule(nalog.id, null))}>{t('nalogDetail_clearVisit')}</button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                nalog.scheduledAt && <div>{t('nalogDetail_scheduled')}: {fmtDateTime(nalog.scheduledAt)}</div>
+              )}
               {nalog.completedAt && <div>{t('nalogDetail_completed')}: {fmtDateTime(nalog.completedAt)}</div>}
               <div>{t('nalogDetail_createdBy')}: {nalog.createdByName ?? '—'}</div>
             </div>

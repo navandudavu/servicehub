@@ -10,6 +10,7 @@ import rs.elgor.nalog.domain.NalogStatus;
 import rs.elgor.nalog.dto.*;
 import rs.elgor.nalog.service.NalogException;
 import rs.elgor.nalog.service.NalogService;
+import rs.elgor.nalog.service.NalogStatsService;
 import rs.elgor.nalog.service.UserDirectoryService;
 import org.springframework.security.access.prepost.PreAuthorize;
 
@@ -22,10 +23,12 @@ public class NalogController {
 
     private final NalogService nalogService;
     private final UserDirectoryService directory;
+    private final NalogStatsService statsService;
 
-    public NalogController(NalogService nalogService, UserDirectoryService directory) {
+    public NalogController(NalogService nalogService, UserDirectoryService directory, NalogStatsService statsService) {
         this.nalogService = nalogService;
         this.directory = directory;
+        this.statsService = statsService;
     }
 
     /**
@@ -91,6 +94,27 @@ public class NalogController {
     public NalogResponse assign(@PathVariable Long id, @RequestBody AssignRequest request,
                                 @AuthenticationPrincipal Jwt jwt) {
         return nalogService.assign(id, request.technicianId(), directory.resolve(jwt));
+    }
+
+    /** Dashboard numbers, scoped to what the caller may see. */
+    @GetMapping("/stats")
+    public NalogStats stats(@AuthenticationPrincipal Jwt jwt) {
+        return statsService.stats(directory.resolve(jwt));
+    }
+
+    /** Planned visits in [from, to), ISO-8601 instants. */
+    @GetMapping("/calendar")
+    public List<CalendarEntry> calendar(@RequestParam java.time.Instant from, @RequestParam java.time.Instant to,
+                                        @AuthenticationPrincipal Jwt jwt) {
+        return statsService.calendar(from, to, directory.resolve(jwt));
+    }
+
+    /** Admin only. Sets or clears the planned visit time. */
+    @PatchMapping("/{id}/schedule")
+    @PreAuthorize("hasRole('ADMIN')")
+    public NalogResponse schedule(@PathVariable Long id, @RequestBody ScheduleRequest request,
+                                  @AuthenticationPrincipal Jwt jwt) {
+        return nalogService.setSchedule(id, request.scheduledAt(), directory.resolve(jwt));
     }
 
     /** Customer autocomplete for the new-nalog form. */
