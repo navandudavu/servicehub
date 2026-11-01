@@ -13,6 +13,7 @@ import NalogNew from './pages/NalogNew';
 import NalogDetail from './pages/NalogDetail';
 import NalogPrintPage from './pages/NalogPrintPage';
 import Reports from './pages/Reports';
+import Parts from './pages/Parts';
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
@@ -54,6 +55,9 @@ export default function App() {
       } />
       <Route path="/customers" element={
         <RequireAuth><Layout><Customers /></Layout></RequireAuth>
+      } />
+      <Route path="/parts" element={
+        <RequireAuth><RequireAdmin><Layout><Parts /></Layout></RequireAdmin></RequireAuth>
       } />
       <Route path="/reports" element={
         <RequireAuth><RequireAdmin><Layout><Reports /></Layout></RequireAdmin></RequireAuth>

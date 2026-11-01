@@ -2,7 +2,7 @@ import axios, { AxiosError, AxiosInstance, Method } from 'axios';
 import type {
   ApiProblem, CreateNalogRequest, CustomerView, CreatePartRequest, NalogListQuery, NalogPreview, NalogResponse,
   NalogStatus, NalogSummary, PageResponse, PartResponse, PreviewRequest, StatusHistoryView,
-  StockAdjustRequest, TechnicianView, UpdatePartRequest, PhotoView, PhotoCategory, NalogStats, CalendarEntry, ReportSummary,
+  StockAdjustRequest, StockMovementView, NoteView, CreateNoteRequest, TechnicianView, UpdatePartRequest, PhotoView, PhotoCategory, NalogStats, CalendarEntry, ReportSummary,
 } from '../types/nalog';
 
 /** Normalised error: the UI never has to look inside an AxiosError. */
@@ -162,6 +162,15 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized }:
   const deletePhoto = (nalogId: number, photoId: number) =>
     send<void>('DELETE', `/api/nalozi/${nalogId}/photos/${photoId}`, { safeToRetry: false });
 
+  // ---- notes ----
+  const listNotes = (nalogId: number, signal?: AbortSignal) =>
+    send<NoteView[]>('GET', `/api/nalozi/${nalogId}/notes`, { safeToRetry: true, signal });
+  // Never retried automatically: a repeat could save the same note twice.
+  const addNote = (nalogId: number, req: CreateNoteRequest) =>
+    send<NoteView>('POST', `/api/nalozi/${nalogId}/notes`, { data: req, safeToRetry: false });
+  const deleteNote = (nalogId: number, noteId: number) =>
+    send<void>('DELETE', `/api/nalozi/${nalogId}/notes/${noteId}`, { safeToRetry: false });
+
   /** Image bytes need the Authorization header, so a plain <img src> can't be used: fetch as a blob. */
   const fetchPhotoBlob = (nalogId: number, photoId: number, signal?: AbortSignal) =>
     send<Blob>('GET', `/api/nalozi/${nalogId}/photos/${photoId}/file`, { safeToRetry: true, responseType: 'blob', signal });
@@ -171,6 +180,8 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized }:
     send<PageResponse<PartResponse>>('GET', '/api/parts', { params: { q, ...opts }, safeToRetry: true, signal });
 
   // admin-only on the server
+  const listStockMovements = (id: number, signal?: AbortSignal) =>
+    send<StockMovementView[]>('GET', `/api/parts/${id}/movements`, { safeToRetry: true, signal });
   const createPart = (req: CreatePartRequest) =>
     send<PartResponse>('POST', '/api/parts', { data: req, safeToRetry: false });
   const updatePart = (id: number, req: UpdatePartRequest) =>
@@ -180,7 +191,7 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized }:
 
   return {
     newIdempotencyKey, submitNalog, previewNalog, listNalozi, getNalog, getNalogHistory, changeStatus,
-    searchCustomers, assignNalog, listTechnicians, getStats, getCalendar, setSchedule, getReportSummary, fetchReportCsv, listPhotos, uploadPhoto, deletePhoto, fetchPhotoBlob, searchParts, createPart, updatePart, adjustStock,
+    searchCustomers, assignNalog, listTechnicians, getStats, getCalendar, setSchedule, getReportSummary, fetchReportCsv, listPhotos, uploadPhoto, deletePhoto, fetchPhotoBlob, listNotes, addNote, deleteNote, searchParts, listStockMovements, createPart, updatePart, adjustStock,
   };
 }
 

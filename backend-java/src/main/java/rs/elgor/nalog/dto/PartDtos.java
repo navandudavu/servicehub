@@ -29,6 +29,22 @@ public final class PartDtos {
             @Size(max = 255) String note
     ) {}
 
+    /** One row of the append-only stock ledger, newest first. */
+    public record StockMovementView(
+            Long id,
+            int delta,
+            String reason,
+            String note,
+            Long nalogId,
+            String actorName,
+            java.time.Instant createdAt
+    ) {
+        public static StockMovementView from(rs.elgor.nalog.domain.StockMovement m) {
+            return new StockMovementView(m.getId(), m.getDelta(), m.getReason().name(), m.getNote(),
+                    m.getNalogId(), m.getActorName(), m.getCreatedAt());
+        }
+    }
+
     public record PartResponse(
             Long id,
             String sku,

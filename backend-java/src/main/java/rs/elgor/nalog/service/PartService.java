@@ -64,6 +64,16 @@ public class PartService {
         return PartResponse.from(partRepository.saveAndFlush(p));
     }
 
+    /** Last 50 ledger rows for one part (admin screen). */
+    @Transactional(readOnly = true)
+    public List<StockMovementView> movements(Long id) {
+        if (!partRepository.existsById(id)) {
+            throw NalogException.notFound("Part " + id + " not found");
+        }
+        return movementRepository.findTop50ByPartIdOrderByCreatedAtDescIdDesc(id).stream()
+                .map(StockMovementView::from).toList();
+    }
+
     /** Locked read-modify-write + ledger row, atomically. */
     @Transactional(rollbackFor = Exception.class)
     public PartResponse adjustStock(Long id, StockAdjustRequest req, AuthUser actor) {

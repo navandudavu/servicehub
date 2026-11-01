@@ -37,6 +37,13 @@ nalog:
     # SAME value as JWT_SECRET in the Node backend's .env, so one login works on both.
     # Must be >= 32 bytes (HS256). No default: startup fails if missing/short.
     jwt-secret: ${JWT_SECRET}
+  auth:
+    # Node owns the accounts. Every request's token is re-checked against it (cached), so a deactivated
+    # or demoted user loses access within cache-seconds instead of when the 12 h token expires.
+    validate-with-node: ${NALOG_VALIDATE_SESSIONS:true}
+    node-url: ${NODE_BACKEND_URL:http://localhost:4000}
+    cache-seconds: 30
+    grace-seconds: 600                      # how long a recent 'valid' answer is trusted if Node is down
   photos:
     dir: ${NALOG_PHOTOS_DIR:./data/nalog-photos}   # image files; back this folder up together with the database
   cors:
