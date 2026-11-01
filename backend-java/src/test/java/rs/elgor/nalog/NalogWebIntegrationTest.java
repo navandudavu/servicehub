@@ -110,12 +110,25 @@ class NalogWebIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void calendarAndStatsWorkAgainstRealPostgres() throws Exception {
-        mvc.perform(post("/api/nalozi").with(admin()).contentType(MediaType.APPLICATION_JSON).content(valid()))
+        java.time.Instant visit = java.time.Instant.now().plus(java.time.Duration.ofDays(2));
+        String scheduled = valid().replace("\"diagnosis\"", "\"scheduledAt\":\"" + visit + "\",\"diagnosis\"");
+        mvc.perform(post("/api/nalozi").with(admin()).contentType(MediaType.APPLICATION_JSON).content(scheduled))
                 .andExpect(status().isCreated());
         mvc.perform(get("/api/nalozi/stats").with(admin())).andExpect(status().isOk());
         mvc.perform(get("/api/nalozi/stats").with(tech())).andExpect(status().isOk());
+
+        String from = java.time.Instant.now().toString();
+        String to = java.time.Instant.now().plus(java.time.Duration.ofDays(30)).toString();
+        mvc.perform(get("/api/nalozi/calendar").with(admin()).param("from", from).param("to", to))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)));
+        // a technician with nothing assigned sees an empty calendar, not someone else's visits
+        mvc.perform(get("/api/nalozi/calendar").with(tech()).param("from", from).param("to", to))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(0)));
+        // the API refuses ranges over 62 days on purpose
         mvc.perform(get("/api/nalozi/calendar").with(admin())
                 .param("from", "2026-01-01T00:00:00Z").param("to", "2027-01-01T00:00:00Z"))
-                .andExpect(status().isOk());
+                .andExpect(status().isBadRequest());
     }
 }
