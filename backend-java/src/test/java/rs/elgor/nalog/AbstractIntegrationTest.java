@@ -11,24 +11,46 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import java.math.BigDecimal;
 
 /**
- * Real PostgreSQL in Docker (Testcontainers), real Flyway migrations, real transactions.
- * One container is shared by every test class; tables are emptied before each test.
- * Needs Docker Desktop running.
+ * Real PostgreSQL, real Flyway migrations, real transactions (see EXTERNAL_URL below for the no-Docker option).
+ * One database is shared by every test class; tables are emptied before each test.
  */
 @SpringBootTest
 public abstract class AbstractIntegrationTest {
 
-    static final PostgreSQLContainer<?> PG = new PostgreSQLContainer<>("postgres:16-alpine");
+    /**
+     * Two ways to get a PostgreSQL:
+     *  1. NALOG_TEST_DB_URL set (e.g. jdbc:postgresql://localhost:5432/nalog_test): use that server, no Docker needed.
+     *     The database name MUST end with _test, because every test starts by TRUNCATE-ing all tables.
+     *     Optional: NALOG_TEST_DB_USER (default nalog), NALOG_TEST_DB_PASSWORD (default dev).
+     *  2. Otherwise a throw-away PostgreSQL in Docker (Testcontainers). Needs Docker Desktop running.
+     */
+    static final String EXTERNAL_URL = System.getenv("NALOG_TEST_DB_URL");
+    static PostgreSQLContainer<?> PG;
 
     static {
-        PG.start();   // stopped automatically by Testcontainers' Ryuk when the JVM exits
+        if (EXTERNAL_URL == null || EXTERNAL_URL.isBlank()) {
+            PG = new PostgreSQLContainer<>("postgres:16-alpine");
+            PG.start();   // stopped automatically by Testcontainers' Ryuk when the JVM exits
+        } else {
+            String dbName = EXTERNAL_URL.substring(EXTERNAL_URL.lastIndexOf('/') + 1).split("\\?")[0];
+            if (!dbName.endsWith("_test")) {
+                throw new IllegalStateException("Refusing to run: NALOG_TEST_DB_URL must point to a database whose name ends with _test "
+                        + "(the tests delete all rows). Got: " + dbName);
+            }
+        }
     }
 
     @DynamicPropertySource
     static void props(DynamicPropertyRegistry r) {
-        r.add("spring.datasource.url", PG::getJdbcUrl);
-        r.add("spring.datasource.username", PG::getUsername);
-        r.add("spring.datasource.password", PG::getPassword);
+        if (PG != null) {
+            r.add("spring.datasource.url", PG::getJdbcUrl);
+            r.add("spring.datasource.username", PG::getUsername);
+            r.add("spring.datasource.password", PG::getPassword);
+        } else {
+            r.add("spring.datasource.url", () -> EXTERNAL_URL);
+            r.add("spring.datasource.username", () -> System.getenv().getOrDefault("NALOG_TEST_DB_USER", "nalog"));
+            r.add("spring.datasource.password", () -> System.getenv().getOrDefault("NALOG_TEST_DB_PASSWORD", "dev"));
+        }
         r.add("nalog.security.jwt-secret", () -> "test-secret-test-secret-test-secret-123456");
         r.add("nalog.auth.validate-with-node", () -> "false");   // covered by NodeSessionValidatorTest
         r.add("nalog.photos.dir", () -> System.getProperty("java.io.tmpdir") + "/nalog-test-photos");
