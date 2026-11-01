@@ -28,8 +28,8 @@ import java.util.List;
  * (HS256, payload {id, role, name}, signed with JWT_SECRET). One login, both backends.
  * This service only VALIDATES tokens; it never issues them.
  *
- * Known limitation: a deactivated user keeps a working token until it expires (12h),
- * because this service has no users table. Phase 3 can add a revocation check.
+ * A valid signature is not enough: NodeSessionFilter asks Node whether the account is still
+ * active (cached ~30 s), so deactivation/deletion/role changes take effect within a minute.
  */
 @Configuration
 @EnableWebSecurity
@@ -37,13 +37,23 @@ import java.util.List;
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationConverter converter) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationConverter converter,
+            @Value("${nalog.auth.validate-with-node:true}") boolean validateWithNode,
+            @Value("${nalog.auth.node-url:http://localhost:4000}") String nodeUrl,
+            @Value("${nalog.auth.cache-seconds:30}") long cacheSeconds,
+            @Value("${nalog.auth.grace-seconds:600}") long graceSeconds) throws Exception {
         http
             .csrf(csrf -> csrf.disable())                       // stateless bearer-token API, no cookies
             .cors(Customizer.withDefaults())
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(a -> a.anyRequest().authenticated())
             .oauth2ResourceServer(o -> o.jwt(j -> j.jwtAuthenticationConverter(converter)));
+        if (validateWithNode) {
+            // not a @Bean on purpose: a bean filter would also be registered a second time in the servlet container
+            http.addFilterAfter(new NodeSessionFilter(new NodeSessionValidator(nodeUrl,
+                    cacheSeconds * 1000, graceSeconds * 1000, System::currentTimeMillis)),
+                    org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter.class);
+        }
         return http.build();
     }
 

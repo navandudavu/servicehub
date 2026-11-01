@@ -49,6 +49,12 @@ public class PartController {
         return partService.update(id, request);
     }
 
+    @GetMapping("/{id}/movements")
+    @PreAuthorize("hasRole('ADMIN')")
+    public java.util.List<StockMovementView> movements(@PathVariable Long id) {
+        return partService.movements(id);
+    }
+
     @PostMapping("/{id}/stock")
     @PreAuthorize("hasRole('ADMIN')")
     public PartResponse adjustStock(@PathVariable Long id,

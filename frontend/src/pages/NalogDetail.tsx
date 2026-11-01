@@ -4,6 +4,7 @@ import { nalogApi } from '../api/nalog';
 import { NalogApiError } from '../api/nalogApi';
 import { NalogStatusTag } from '../components/NalogStatusTag';
 import { NalogPhotos } from '../components/NalogPhotos';
+import { NalogNotes } from '../components/NalogNotes';
 import Modal from '../components/Modal';
 import Spinner from '../components/Spinner';
 import { useCurrentUser } from '../context/typedAuth';
@@ -148,6 +149,8 @@ export default function NalogDetail() {
           </Card>
 
           <NalogPhotos nalogId={nalog.id} canUpload={nalog.status !== 'CANCELLED'} isAdmin={isAdmin} userId={user?.id ?? null} />
+
+          <NalogNotes nalogId={nalog.id} isAdmin={isAdmin} />
 
           <Card title={t('nalogDetail_partsLabor')}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>

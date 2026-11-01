@@ -202,6 +202,19 @@ export interface PartResponse {
   active: boolean;
 }
 
+export type StockReason = 'INITIAL' | 'MANUAL' | 'NALOG_CREATE' | 'NALOG_CANCEL';
+
+/** PartDtos.StockMovementView */
+export interface StockMovementView {
+  id: number;
+  delta: number;
+  reason: StockReason;
+  note: string | null;
+  nalogId: number | null;
+  actorName: string | null;
+  createdAt: string; // ISO instant
+}
+
 export interface CreatePartRequest {
   sku: string;
   name: string;
@@ -258,6 +271,20 @@ export interface PhotoView {
   uploadedById: number | null;
   uploadedByName: string | null;
   createdAt: string;
+}
+
+/** NoteDtos.NoteView - append-only notes on a nalog. */
+export interface NoteView {
+  id: number;
+  nalogId: number;
+  authorId: number | null;
+  authorName: string;
+  body: string;
+  createdAt: string; // ISO instant
+}
+
+export interface CreateNoteRequest {
+  body: string; // 1..2000 characters
 }
 
 /** Mirrors NalogStats.java (GET /api/nalozi/stats). Hours are strings. */

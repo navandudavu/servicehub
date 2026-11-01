@@ -23,6 +23,7 @@ export default function Layout({ children }) {
     { to: '/customers', label: t('nav_customers') },
   ];
   const adminNavItems = [
+    { to: '/parts', label: t('nav_parts') },
     { to: '/reports', label: t('nav_reports') },
     { to: '/team', label: t('nav_team') },
   ];

@@ -30,6 +30,7 @@ public abstract class AbstractIntegrationTest {
         r.add("spring.datasource.username", PG::getUsername);
         r.add("spring.datasource.password", PG::getPassword);
         r.add("nalog.security.jwt-secret", () -> "test-secret-test-secret-test-secret-123456");
+        r.add("nalog.auth.validate-with-node", () -> "false");   // covered by NodeSessionValidatorTest
         r.add("nalog.photos.dir", () -> System.getProperty("java.io.tmpdir") + "/nalog-test-photos");
     }
 
@@ -37,7 +38,7 @@ public abstract class AbstractIntegrationTest {
 
     @BeforeEach
     void cleanDatabase() {
-        jdbc.execute("TRUNCATE nalog_photo, stock_movement, nalog_status_history, nalog_part_line, nalog, customer, parts, app_user RESTART IDENTITY CASCADE");
+        jdbc.execute("TRUNCATE nalog_note, nalog_photo, stock_movement, nalog_status_history, nalog_part_line, nalog, customer, parts, app_user RESTART IDENTITY CASCADE");
     }
 
     protected long insertUser(long id, String name, String role) {
