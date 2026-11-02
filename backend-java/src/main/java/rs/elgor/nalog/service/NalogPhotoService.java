@@ -157,6 +157,23 @@ public class NalogPhotoService {
         });
     }
 
+    /** Used when a whole nalog is deleted: the rows go now, the files only after the transaction really committed. */
+    @Transactional(rollbackFor = Exception.class)
+    public void removeAllFor(Long nalogId) {
+        List<NalogPhoto> all = photos.findByNalogIdOrderByIdAsc(nalogId);
+        if (all.isEmpty()) {
+            return;
+        }
+        List<Path> targets = all.stream().map(p -> dir.resolve(p.getFilename()).normalize()).toList();
+        photos.deleteAll(all);
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                targets.forEach(NalogPhotoService::deleteQuietly);
+            }
+        });
+    }
+
     // ---- helpers -----------------------------------------------------------
 
     /** {contentType, extension} from the file's first bytes, or null if it is not an accepted image. */

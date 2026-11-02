@@ -15,7 +15,7 @@ import java.time.Instant;
 @NoArgsConstructor
 public class StockMovement {
 
-    public enum Reason { INITIAL, MANUAL, NALOG_CREATE, NALOG_CANCEL }
+    public enum Reason { INITIAL, MANUAL, NALOG_CREATE, NALOG_CANCEL, NALOG_EDIT, NALOG_DELETE }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

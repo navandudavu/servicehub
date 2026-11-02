@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import rs.elgor.nalog.domain.NalogStatus;
 import rs.elgor.nalog.dto.*;
+import rs.elgor.nalog.service.NalogDeleteService;
 import rs.elgor.nalog.service.NalogException;
 import rs.elgor.nalog.service.NalogService;
 import rs.elgor.nalog.service.NalogStatsService;
@@ -24,11 +25,14 @@ public class NalogController {
     private final NalogService nalogService;
     private final UserDirectoryService directory;
     private final NalogStatsService statsService;
+    private final NalogDeleteService deleteService;
 
-    public NalogController(NalogService nalogService, UserDirectoryService directory, NalogStatsService statsService) {
+    public NalogController(NalogService nalogService, UserDirectoryService directory, NalogStatsService statsService,
+                           NalogDeleteService deleteService) {
         this.nalogService = nalogService;
         this.directory = directory;
         this.statsService = statsService;
+        this.deleteService = deleteService;
     }
 
     /**
@@ -55,8 +59,8 @@ public class NalogController {
 
     /** "What would this cost?" - backend maths, nothing saved. */
     @PostMapping("/preview")
-    public NalogPreview preview(@Valid @RequestBody PreviewRequest request) {
-        return nalogService.preview(request);
+    public NalogPreview preview(@Valid @RequestBody PreviewRequest request, @AuthenticationPrincipal Jwt jwt) {
+        return nalogService.preview(request, directory.resolve(jwt));
     }
 
     @GetMapping
@@ -81,6 +85,21 @@ public class NalogController {
     }
 
     /** Transition rules and the admin-only cancel are enforced in the service. */
+    /** Change a nalog that is not finished. Admin: any; technician: only their own. */
+    @PutMapping("/{id}")
+    public NalogResponse update(@PathVariable Long id, @Valid @RequestBody UpdateNalogRequest request,
+                                @AuthenticationPrincipal Jwt jwt) {
+        return nalogService.update(id, request, directory.resolve(jwt));
+    }
+
+    /** Admin only. Everything except COMPLETED; stock is returned. */
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> delete(@PathVariable Long id, @AuthenticationPrincipal Jwt jwt) {
+        deleteService.delete(id, directory.resolve(jwt));
+        return ResponseEntity.noContent().build();
+    }
+
     @PatchMapping("/{id}/status")
     public NalogResponse changeStatus(@PathVariable Long id,
                                       @Valid @RequestBody ChangeStatusRequest request,

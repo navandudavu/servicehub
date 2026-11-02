@@ -44,7 +44,12 @@ public class PricingCalculator {
     }
 
     public Totals calculate(BigDecimal laborHours, List<Line> lines) {
-        BigDecimal rate = props.laborRatePerHour().setScale(MONEY_SCALE, ROUNDING);
+        return calculate(laborHours, lines, props.laborRatePerHour(), props.vatRate());
+    }
+
+    /** Same maths with explicit rates: editing an existing nalog keeps the rates it was created with. */
+    public Totals calculate(BigDecimal laborHours, List<Line> lines, BigDecimal laborRatePerHour, BigDecimal vatRate) {
+        BigDecimal rate = laborRatePerHour.setScale(MONEY_SCALE, ROUNDING);
 
         BigDecimal laborTotal = laborHours.multiply(rate).setScale(MONEY_SCALE, ROUNDING);
 
@@ -54,10 +59,10 @@ public class PricingCalculator {
         }
 
         BigDecimal subtotal = laborTotal.add(partsTotal);
-        BigDecimal vatAmount = subtotal.multiply(props.vatRate()).setScale(MONEY_SCALE, ROUNDING);
+        BigDecimal vatAmount = subtotal.multiply(vatRate).setScale(MONEY_SCALE, ROUNDING);
         BigDecimal total = subtotal.add(vatAmount);
 
         return new Totals(rate, laborTotal, partsTotal, subtotal,
-                props.vatRate().setScale(4, ROUNDING), vatAmount, total);
+                vatRate.setScale(4, ROUNDING), vatAmount, total);
     }
 }
