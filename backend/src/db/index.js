@@ -36,6 +36,12 @@ if (!columnExists('jobs', 'hours_logged')) {
     db.exec('ALTER TABLE jobs ADD COLUMN hours_logged REAL');
 }
 
+// Tokens issued before this moment (unix seconds) are refused. Bumped on password change/reset and on deactivation,
+// so an old token cannot outlive the credentials it was issued for.
+if (!columnExists('users', 'tokens_valid_after')) {
+    db.exec('ALTER TABLE users ADD COLUMN tokens_valid_after INTEGER NOT NULL DEFAULT 0');
+}
+
 if (!columnExists('job_photos', 'category')) {
     db.exec("ALTER TABLE job_photos ADD COLUMN category TEXT DEFAULT 'other'");
 }
