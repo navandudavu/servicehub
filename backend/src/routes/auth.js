@@ -1,8 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const db = require('../db');
-const { requireAuth, JWT_SECRET } = require('../middleware/auth');
+const { requireAuth, signToken } = require('../middleware/auth');
 const { loginLimiter } = require('../middleware/loginLimiter');
 
 const router = express.Router();
@@ -18,11 +17,7 @@ router.post('/login', loginLimiter, (req, res) => {
         return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const token = jwt.sign(
-        { id: user.id, role: user.role, name: user.name },
-        JWT_SECRET,
-        { expiresIn: '12h' }
-    );
+    const token = signToken(user);
 
     res.json({
         token,

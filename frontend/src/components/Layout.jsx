@@ -129,7 +129,9 @@ function ChangePasswordModal({ onClose }) {
     setBusy(true);
     setError('');
     try {
-      await api.users.changeMyPassword(currentPassword, newPassword);
+      const changed = await api.users.changeMyPassword(currentPassword, newPassword);
+      // the server logs every other session out and hands this one a fresh token
+      if (changed?.token) localStorage.setItem('servicehub_token', changed.token);
       setDone(true);
     } catch (err) {
       setError(err.message);

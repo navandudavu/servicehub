@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const db = require('../db');
-const { requireAuth, requireRole } = require('../middleware/auth');
+const { requireAuth, requireRole, signToken, revokeTokens } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -39,6 +39,7 @@ router.patch('/:id/active', requireAuth, requireRole('admin'), (req, res) => {
     const { active } = req.body;
     const info = db.prepare('UPDATE users SET active = ? WHERE id = ?').run(active ? 1 : 0, req.params.id);
     if (info.changes === 0) return res.status(404).json({ error: 'User not found' });
+    if (!active) revokeTokens(req.params.id);      // re-activating later must not bring old tokens back to life
     res.json({ ok: true });
 });
 
@@ -55,6 +56,7 @@ router.patch('/:id/reset-password', requireAuth, requireRole('admin'), (req, res
 
     const hash = bcrypt.hashSync(new_password, 10);
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, req.params.id);
+    revokeTokens(req.params.id);                   // whoever held the old password is logged out everywhere
     res.json({ ok: true });
 });
 
@@ -75,7 +77,8 @@ router.patch('/me/password', requireAuth, (req, res) => {
 
     const hash = bcrypt.hashSync(new_password, 10);
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, req.user.id);
-    res.json({ ok: true });
+    revokeTokens(req.user.id);                     // every other session/device is logged out ...
+    res.json({ ok: true, token: signToken(user) }); // ... and this one gets a fresh token so the user stays logged in
 });
 
 // Update user profile (name, email, role, phone) - admin or self
