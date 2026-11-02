@@ -60,7 +60,7 @@ public abstract class AbstractIntegrationTest {
 
     @BeforeEach
     void cleanDatabase() {
-        jdbc.execute("TRUNCATE nalog_note, nalog_photo, stock_movement, nalog_status_history, nalog_part_line, nalog, customer, parts, app_user RESTART IDENTITY CASCADE");
+        jdbc.execute("TRUNCATE nalog_deleted_log, nalog_note, nalog_photo, stock_movement, nalog_status_history, nalog_part_line, nalog, customer, parts, app_user RESTART IDENTITY CASCADE");
     }
 
     protected long insertUser(long id, String name, String role) {

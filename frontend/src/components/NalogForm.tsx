@@ -6,7 +6,7 @@ import { useLang } from '../i18n/typedLang';
 import {
   APPLIANCE_TYPES, PAYMENT_TYPES,
   type ApplianceType, type CreateNalogRequest, type CustomerView, type NalogPreview, type NalogResponse,
-  type PartResponse, type PaymentType, type TechnicianView,
+  type PartResponse, type PaymentType, type TechnicianView, type UpdateNalogRequest,
 } from '../types/nalog';
 
 /**
@@ -18,7 +18,10 @@ import {
  */
 interface Props {
   isAdmin: boolean;
-  onCreated: (nalog: NalogResponse) => void;
+  onCreated?: (nalog: NalogResponse) => void;
+  /** Edit mode: the (unfinished) nalog being changed. The form starts filled from it and saves with PUT. */
+  editing?: NalogResponse;
+  onSaved?: (nalog: NalogResponse) => void;
 }
 
 interface SelectedPart {
@@ -51,11 +54,11 @@ function Field({ label, error, children }: { label: string; error?: string; chil
 
 const grid2 = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' } as const;
 
-export function NalogForm({ isAdmin, onCreated }: Props) {
+export function NalogForm({ isAdmin, onCreated, editing, onSaved }: Props) {
   const { t } = useLang();
 
   // --- customer ---
-  const [customer, setCustomer] = useState<CustomerView | null>(null);   // picked existing customer
+  const [customer, setCustomer] = useState<CustomerView | null>(editing?.customer ?? null);   // picked existing customer
   const [customerQuery, setCustomerQuery] = useState('');
   const [customerResults, setCustomerResults] = useState<CustomerView[]>([]);
   const [fullName, setFullName] = useState('');
@@ -65,20 +68,23 @@ export function NalogForm({ isAdmin, onCreated }: Props) {
   const [locationNotes, setLocationNotes] = useState('');
 
   // --- appliance / issue ---
-  const [applianceType, setApplianceType] = useState<ApplianceType>('AIR_CONDITIONER');
-  const [brand, setBrand] = useState('');
-  const [model, setModel] = useState('');
-  const [serialNumber, setSerialNumber] = useState('');
-  const [diagnosis, setDiagnosis] = useState('');
+  const [applianceType, setApplianceType] = useState<ApplianceType>(editing?.appliance.type ?? 'AIR_CONDITIONER');
+  const [brand, setBrand] = useState(editing?.appliance.brand ?? '');
+  const [model, setModel] = useState(editing?.appliance.model ?? '');
+  const [serialNumber, setSerialNumber] = useState(editing?.appliance.serialNumber ?? '');
+  const [diagnosis, setDiagnosis] = useState(editing?.diagnosis ?? '');
 
   // --- parts & labor ---
   const [partQuery, setPartQuery] = useState('');
   const [partResults, setPartResults] = useState<PartResponse[]>([]);
-  const [selected, setSelected] = useState<SelectedPart[]>([]);
-  const [laborHours, setLaborHours] = useState('0.00');
+  const [selected, setSelected] = useState<SelectedPart[]>(() => (editing?.partLines ?? []).map((l) => ({
+    part: { id: l.partId, sku: l.sku, name: l.name, unitPrice: l.unitPrice, stockQty: 0, active: true },
+    quantity: l.quantity,
+  })));
+  const [laborHours, setLaborHours] = useState(editing?.laborHours ?? '0.00');
 
   // --- misc ---
-  const [paymentType, setPaymentType] = useState<PaymentType>('CASH');
+  const [paymentType, setPaymentType] = useState<PaymentType>(editing?.paymentType ?? 'CASH');
   const [initialStatus, setInitialStatus] = useState<'DRAFT' | 'DISPATCHED'>('DRAFT');
   const [scheduledAt, setScheduledAt] = useState('');          // datetime-local (browser local time)
   const [technicians, setTechnicians] = useState<TechnicianView[]>([]);
@@ -99,7 +105,7 @@ export function NalogForm({ isAdmin, onCreated }: Props) {
 
   // Admin: who can it be assigned to?
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!isAdmin || editing) return;                  // assignment is not part of an edit
     const ctrl = new AbortController();
     nalogApi.listTechnicians(ctrl.signal).then(setTechnicians).catch((e) => {
       if (!ctrl.signal.aborted && !(e instanceof NalogApiError && e.message === 'Request cancelled')) {
@@ -107,7 +113,7 @@ export function NalogForm({ isAdmin, onCreated }: Props) {
       }
     });
     return () => ctrl.abort();
-  }, [isAdmin]);
+  }, [isAdmin, editing]);
 
   // Debounced existing-customer lookup.
   useEffect(() => {
@@ -140,7 +146,7 @@ export function NalogForm({ isAdmin, onCreated }: Props) {
     setPreviewBusy(true);
     const timer = setTimeout(() => {
       nalogApi.previewNalog(
-        { laborHours, partLines: selected.map((s) => ({ partId: s.part.id, quantity: s.quantity })) },
+        { laborHours, partLines: selected.map((s) => ({ partId: s.part.id, quantity: s.quantity })), nalogId: editing?.id ?? null },
         ctrl.signal,
       )
         .then((p) => { setPreview(p); setPreviewError(null); })
@@ -153,7 +159,7 @@ export function NalogForm({ isAdmin, onCreated }: Props) {
         .finally(() => setPreviewBusy(false));
     }, 400);
     return () => { clearTimeout(timer); ctrl.abort(); setPreviewBusy(false); };
-  }, [laborHours, selected]);
+  }, [laborHours, selected, editing?.id]);
 
   function addPart(part: PartResponse) {
     setSelected((cur) => cur.some((s) => s.part.id === part.id)
@@ -179,6 +185,37 @@ export function NalogForm({ isAdmin, onCreated }: Props) {
       return;
     }
 
+    if (editing) {
+      const update: UpdateNalogRequest = {
+        customerId: customer ? customer.id : null,
+        newCustomer: customer ? null : {
+          fullName, phone, address,
+          city: city || null,
+          locationNotes: locationNotes || null,
+        },
+        appliance: { type: applianceType, brand, model: model || null, serialNumber: serialNumber || null },
+        diagnosis,
+        partLines: selected.map((s) => ({ partId: s.part.id, quantity: s.quantity })),
+        laborHours,
+        paymentType,
+        expectedVersion: editing.version,
+      };
+      setSubmitting(true);
+      try {
+        onSaved?.(await nalogApi.updateNalog(editing.id, update));
+      } catch (err) {
+        if (err instanceof NalogApiError) {
+          setFieldErrors(err.fieldErrors);
+          setFormError(err.message);
+        } else {
+          setFormError(t('nalogForm_unexpected'));
+        }
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
     const request: CreateNalogRequest = {
       customerId: customer ? customer.id : null,
       newCustomer: customer ? null : {
@@ -201,7 +238,7 @@ export function NalogForm({ isAdmin, onCreated }: Props) {
     try {
       const created = await nalogApi.submitNalog(request, idempotencyKey.current);
       idempotencyKey.current = nalogApi.newIdempotencyKey();     // next form => next key
-      onCreated(created);
+      onCreated?.(created);
     } catch (err) {
       if (err instanceof NalogApiError) {
         setFieldErrors(err.fieldErrors);
@@ -218,6 +255,11 @@ export function NalogForm({ isAdmin, onCreated }: Props) {
 
   return (
     <form onSubmit={onSubmit} style={{ maxWidth: 760 }}>
+      {editing && (
+        <div className="card" style={{ padding: '10px 14px', marginBottom: 16, fontSize: 13, color: 'var(--stone)' }}>
+          {t('nalogEdit_note')}
+        </div>
+      )}
       {/* ---------- customer ---------- */}
       <Section title={t('nalogForm_customer')}>
         {customer ? (
@@ -228,7 +270,13 @@ export function NalogForm({ isAdmin, onCreated }: Props) {
                 {customer.address}{customer.city ? `, ${customer.city}` : ''} · {customer.phone}
               </div>
             </div>
-            <button type="button" className="btn-secondary btn-sm" onClick={() => { setCustomer(null); setCustomerQuery(''); }}>
+            <button type="button" className="btn-secondary btn-sm" onClick={() => {
+              if (editing) {                      // start the "new customer" form from the current details, to fix a typo
+                setFullName(customer.fullName); setPhone(customer.phone); setAddress(customer.address);
+                setCity(customer.city ?? ''); setLocationNotes(customer.locationNotes ?? '');
+              }
+              setCustomer(null); setCustomerQuery('');
+            }}>
               {t('nalogForm_changeCustomer')}
             </button>
           </div>
@@ -363,10 +411,12 @@ export function NalogForm({ isAdmin, onCreated }: Props) {
               {PAYMENT_TYPES.map((p) => <option key={p} value={p}>{t(`payment_${p}`)}</option>)}
             </select>
           </Field>
-          <Field label={t('nalogForm_scheduledAt')} error={fe('scheduledAt')}>
-            <input className="input" type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
-          </Field>
-          {isAdmin && (
+          {!editing && (
+            <Field label={t('nalogForm_scheduledAt')} error={fe('scheduledAt')}>
+              <input className="input" type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+            </Field>
+          )}
+          {isAdmin && !editing && (
             <>
               <Field label={t('nalogForm_assignTo')}>
                 <select className="input" value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)}>
@@ -396,7 +446,7 @@ export function NalogForm({ isAdmin, onCreated }: Props) {
         </div>
       )}
       <button type="submit" className="btn" disabled={submitting}>
-        {submitting ? t('nalogForm_saving') : t('nalogForm_submit')}
+        {submitting ? t('nalogForm_saving') : editing ? t('nalogEdit_save') : t('nalogForm_submit')}
       </button>
     </form>
   );

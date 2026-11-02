@@ -10,7 +10,7 @@ import Spinner from '../components/Spinner';
 import { useCurrentUser } from '../context/typedAuth';
 import { useLang } from '../i18n/typedLang';
 import { formatMoney, formatRate } from '../print/formatMoney';
-import { NEXT_STATUSES, type NalogResponse, type NalogStatus, type StatusHistoryView, type TechnicianView } from '../types/nalog';
+import { EDITABLE_STATUSES, NEXT_STATUSES, type NalogResponse, type NalogStatus, type StatusHistoryView, type TechnicianView } from '../types/nalog';
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -38,6 +38,7 @@ export default function NalogDetail() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [visit, setVisit] = useState('');                    // datetime-local value, browser time
 
   const load = useCallback(async (signal?: AbortSignal) => {
@@ -88,6 +89,19 @@ export default function NalogDetail() {
     }
   }
 
+  async function deleteThis() {
+    if (busy) return;
+    setBusy(true); setError('');
+    try {
+      await nalogApi.deleteNalog(nalogId);
+      navigate('/nalozi');
+    } catch (e) {
+      setError(e instanceof NalogApiError ? e.message : t('nalogForm_unexpected'));
+      setConfirmDelete(false);
+      setBusy(false);
+    }
+  }
+
   if (loading && !nalog) return <div style={{ padding: 20 }}><Spinner label={t('jobBoard_loading')} /></div>;
   if (notFound || !nalog) {
     return (
@@ -102,6 +116,8 @@ export default function NalogDetail() {
   const closed = nalog.status === 'COMPLETED' || nalog.status === 'CANCELLED';
   const moves = NEXT_STATUSES[nalog.status].filter((s) => s !== 'CANCELLED');
   const canCancel = isAdmin && NEXT_STATUSES[nalog.status].includes('CANCELLED');
+  const canEdit = EDITABLE_STATUSES.includes(nalog.status);
+  const canDelete = isAdmin && nalog.status !== 'COMPLETED';
   const c = nalog.customer;
   const a = nalog.appliance;
 
@@ -120,8 +136,10 @@ export default function NalogDetail() {
               {t('nalogDetail_nextActions')}: {t(`nalogStatus_${s}`)}
             </button>
           ))}
+          {canEdit && <button className="btn-secondary" disabled={busy} onClick={() => navigate(`/nalozi/${nalog.id}/edit`)}>{t('nalogDetail_edit')}</button>}
           <button className="btn-secondary" onClick={() => navigate(`/nalozi/${nalog.id}/print`)}>{t('nalogDetail_print')}</button>
           {canCancel && <button className="btn-danger-outline btn-sm" disabled={busy} onClick={() => setConfirmCancel(true)}>{t('nalogDetail_cancel')}</button>}
+          {canDelete && <button className="btn-danger-outline btn-sm" disabled={busy} onClick={() => setConfirmDelete(true)}>{t('nalogDetail_delete')}</button>}
         </div>
       </div>
 
@@ -222,6 +240,16 @@ export default function NalogDetail() {
           </Card>
         </div>
       </div>
+
+      {confirmDelete && (
+        <Modal title={t('nalogDetail_delete')} onClose={() => setConfirmDelete(false)} width={420}>
+          <p style={{ marginTop: 0 }}>{nalog.status === 'CANCELLED' ? t('nalogDetail_deleteConfirmCancelled') : t('nalogDetail_deleteConfirm')}</p>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button className="btn-secondary" onClick={() => setConfirmDelete(false)} disabled={busy}>{t('common_cancel')}</button>
+            <button className="btn btn-danger" disabled={busy} onClick={deleteThis}>{busy ? t('common_deleting') : t('nalogDetail_delete')}</button>
+          </div>
+        </Modal>
+      )}
 
       {confirmCancel && (
         <Modal title={t('nalogDetail_cancel')} onClose={() => setConfirmCancel(false)} width={400}>

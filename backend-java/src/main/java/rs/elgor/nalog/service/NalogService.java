@@ -91,7 +91,7 @@ public class NalogService {
 
         // 4. Parts: merge duplicates, lock rows, validate stock, snapshot prices, decrement.
         Nalog nalog = new Nalog();
-        List<NalogPartLine> lines = buildLines(req.partLines(), true);
+        List<NalogPartLine> lines = buildLines(req.partLines(), true, null);
         lines.forEach(nalog::addPartLine);
 
         // 5. Money. Computed here, in Java, with BigDecimal + HALF_UP (RULE A).
@@ -145,9 +145,12 @@ public class NalogService {
     // ========================================================================
 
     @Transactional(readOnly = true)
-    public NalogPreview preview(PreviewRequest req) {
-        List<NalogPartLine> lines = buildLines(req.partLines(), false);
-        PricingCalculator.Totals t = pricing.calculate(req.laborHours(), toPriceLines(lines));
+    public NalogPreview preview(PreviewRequest req, AuthUser actor) {
+        Nalog editing = req.nalogId() == null ? null : loadAccessible(req.nalogId(), actor);
+        List<NalogPartLine> lines = buildLines(req.partLines(), false, editing);
+        PricingCalculator.Totals t = editing == null
+                ? pricing.calculate(req.laborHours(), toPriceLines(lines))
+                : pricing.calculate(req.laborHours(), toPriceLines(lines), editing.getLaborRate(), editing.getVatRate());
         return new NalogPreview(req.laborHours(), t.laborRate(), t.laborTotal(),
                 lines.stream().map(l -> new NalogResponse.PartLineView(l.getPart().getId(), l.getPartSku(),
                         l.getPartName(), l.getUnitPrice(), l.getQuantity(), l.getLineTotal())).toList(),
@@ -182,7 +185,7 @@ public class NalogService {
         }
 
         if (target == NalogStatus.CANCELLED) {
-            restoreStock(nalog, actor);
+            restoreStock(nalog, actor, StockMovement.Reason.NALOG_CANCEL);
         }
         if (target == NalogStatus.COMPLETED) {
             nalog.setCompletedAt(Instant.now());
@@ -195,7 +198,8 @@ public class NalogService {
         return NalogResponse.from(saved);
     }
 
-    private void restoreStock(Nalog nalog, AuthUser actor) {
+    /** Gives every part on the nalog back to stock + ledger rows. Call inside the caller's transaction. */
+    public void restoreStock(Nalog nalog, AuthUser actor, StockMovement.Reason reason) {
         if (nalog.getPartLines().isEmpty()) {
             return;
         }
@@ -208,7 +212,7 @@ public class NalogService {
             Part p = locked.get(l.getPart().getId());
             p.setStockQty(p.getStockQty() + l.getQuantity());
             movementRepository.save(StockMovement.of(p.getId(), l.getQuantity(),
-                    StockMovement.Reason.NALOG_CANCEL, nalog.getId(), actor, nalog.getNalogNumber()));
+                    reason, nalog.getId(), actor, nalog.getNalogNumber()));
         }
     }
 
@@ -264,6 +268,122 @@ public class NalogService {
     }
 
     // ========================================================================
+    // EDIT
+    // ========================================================================
+
+    private static final Set<NalogStatus> EDITABLE =
+            EnumSet.of(NalogStatus.DRAFT, NalogStatus.DISPATCHED, NalogStatus.IN_PROGRESS, NalogStatus.AWAITING_PARTS);
+
+    /**
+     * One transaction, like create: the nalog row is locked, stock is reconciled part by part (only the DIFFERENCE
+     * moves, each move gets a ledger row), the money is recomputed in Java, and any failure rolls everything back.
+     *
+     * Prices: parts already on the nalog keep the price they were added with, a newly added part gets today's price,
+     * and the labor/VAT rates stay those of the nalog. A catalogue or rate change never rewrites an open nalog.
+     * COMPLETED (finished, accounting document) and CANCELLED (stock already returned) cannot be edited.
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public NalogResponse update(Long id, UpdateNalogRequest req, AuthUser actor) {
+        Nalog nalog = nalogRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> NalogException.notFound("Nalog " + id + " not found"));
+        requireAccess(nalog, actor);
+        if (!EDITABLE.contains(nalog.getStatus())) {
+            throw NalogException.conflict("A " + nalog.getStatus() + " nalog cannot be edited");
+        }
+        if (!Objects.equals(nalog.getVersion(), req.expectedVersion())) {
+            throw NalogException.conflict("This nalog was changed by someone else since you opened it. Reload it and try again.");
+        }
+
+        Customer customer = resolveCustomer(req.customerId(), req.newCustomer());
+
+        Map<Long, Integer> wanted = new TreeMap<>();
+        for (CreateNalogRequest.PartLineInput in : req.partLines()) {
+            wanted.merge(in.partId(), in.quantity(), Integer::sum);
+        }
+        Map<Long, NalogPartLine> current = new HashMap<>();
+        nalog.getPartLines().forEach(l -> current.put(l.getPart().getId(), l));
+
+        // Lock every affected part in ascending id order (same order as create => no deadlocks).
+        Set<Long> ids = new TreeSet<>(wanted.keySet());
+        ids.addAll(current.keySet());
+        Map<Long, Part> parts = new HashMap<>();
+        if (!ids.isEmpty()) {
+            partRepository.findAllByIdForUpdate(ids).forEach(p -> parts.put(p.getId(), p));
+        }
+        Set<Long> missing = new TreeSet<>(wanted.keySet());
+        missing.removeAll(parts.keySet());
+        if (!missing.isEmpty()) {
+            throw NalogException.notFound("Unknown part id(s): " + missing);
+        }
+
+        List<StockMovement> movements = new ArrayList<>();
+        for (Long partId : ids) {
+            Part part = parts.get(partId);
+            NalogPartLine line = current.get(partId);
+            int oldQty = line == null ? 0 : line.getQuantity();
+            int newQty = wanted.getOrDefault(partId, 0);
+            int delta = newQty - oldQty;                         // > 0 takes from stock, < 0 gives back
+
+            if (newQty > 999) {
+                throw NalogException.invalid("Quantity for " + part.getSku() + " exceeds 999");
+            }
+            if (delta > 0) {
+                if (!part.isActive()) {
+                    throw NalogException.invalid("Part " + part.getSku() + " is discontinued");
+                }
+                if (part.getStockQty() < delta) {
+                    throw NalogException.conflict("Not enough stock for " + part.getSku()
+                            + " (need " + delta + " more, available " + part.getStockQty() + ")");
+                }
+            }
+            if (delta != 0) {
+                part.setStockQty(part.getStockQty() - delta);
+                movements.add(StockMovement.of(partId, -delta, StockMovement.Reason.NALOG_EDIT,
+                        nalog.getId(), actor, nalog.getNalogNumber()));
+            }
+
+            if (newQty == 0) {
+                nalog.getPartLines().remove(line);               // orphanRemoval deletes the row
+            } else if (line != null) {
+                line.setQuantity(newQty);
+                line.setLineTotal(pricing.lineTotal(line.getUnitPrice(), newQty));
+            } else {
+                NalogPartLine fresh = new NalogPartLine();
+                fresh.setPart(part);
+                fresh.setPartSku(part.getSku());
+                fresh.setPartName(part.getName());
+                fresh.setUnitPrice(part.getUnitPrice());
+                fresh.setQuantity(newQty);
+                fresh.setLineTotal(pricing.lineTotal(part.getUnitPrice(), newQty));
+                nalog.addPartLine(fresh);
+            }
+        }
+
+        PricingCalculator.Totals t = pricing.calculate(req.laborHours(), toPriceLines(nalog.getPartLines()),
+                nalog.getLaborRate(), nalog.getVatRate());
+
+        nalog.setCustomer(customer);
+        nalog.setApplianceType(req.appliance().type());
+        nalog.setApplianceBrand(req.appliance().brand().trim());
+        nalog.setApplianceModel(blankToNull(req.appliance().model()));
+        nalog.setSerialNumber(blankToNull(req.appliance().serialNumber()));
+        nalog.setDiagnosis(req.diagnosis().trim());
+        nalog.setLaborHours(req.laborHours());
+        nalog.setLaborTotal(t.laborTotal());
+        nalog.setPartsTotal(t.partsTotal());
+        nalog.setSubtotal(t.subtotal());
+        nalog.setVatAmount(t.vatAmount());
+        nalog.setTotal(t.total());
+        nalog.setPaymentType(req.paymentType());
+
+        Nalog saved = nalogRepository.saveAndFlush(nalog);
+        movements.forEach(movementRepository::save);
+
+        log.info("Edited nalog {} by {} (total now {})", saved.getNalogNumber(), actor == null ? "?" : actor.name(), saved.getTotal());
+        return NalogResponse.from(saved);
+    }
+
+    // ========================================================================
     // ASSIGNMENT (admin only, enforced in the controller AND here)
     // ========================================================================
 
@@ -312,7 +432,12 @@ public class NalogService {
      * reserve=false (preview): plain read, nothing changes.
      * TreeMap => ascending id => consistent lock order => no deadlocks.
      */
-    private List<NalogPartLine> buildLines(List<CreateNalogRequest.PartLineInput> inputs, boolean reserve) {
+    private List<NalogPartLine> buildLines(List<CreateNalogRequest.PartLineInput> inputs, boolean reserve, Nalog editing) {
+        // Editing preview only: parts already on the nalog keep the snapshot they were added with.
+        Map<Long, NalogPartLine> onNalog = new HashMap<>();
+        if (editing != null) {
+            editing.getPartLines().forEach(l -> onNalog.put(l.getPart().getId(), l));
+        }
         Map<Long, Integer> wanted = new TreeMap<>();
         for (CreateNalogRequest.PartLineInput in : inputs) {
             wanted.merge(in.partId(), in.quantity(), Integer::sum);
@@ -335,13 +460,15 @@ public class NalogService {
         List<NalogPartLine> lines = new ArrayList<>();
         for (Part part : parts) {
             int qty = wanted.get(part.getId());
-            if (!part.isActive()) {
+            NalogPartLine old = onNalog.get(part.getId());
+            int alreadyOnNalog = old == null ? 0 : old.getQuantity();
+            if (!part.isActive() && qty > alreadyOnNalog) {
                 throw NalogException.invalid("Part " + part.getSku() + " is discontinued");
             }
             if (qty > 999) {
                 throw NalogException.invalid("Quantity for " + part.getSku() + " exceeds 999");
             }
-            if (part.getStockQty() < qty) {
+            if (part.getStockQty() + alreadyOnNalog < qty) {
                 throw NalogException.conflict("Not enough stock for " + part.getSku()
                         + " (requested " + qty + ", available " + part.getStockQty() + ")");
             }
@@ -350,11 +477,11 @@ public class NalogService {
             }
             NalogPartLine line = new NalogPartLine();
             line.setPart(part);
-            line.setPartSku(part.getSku());                       // snapshots: catalogue edits
-            line.setPartName(part.getName());                     // must never rewrite history
-            line.setUnitPrice(part.getUnitPrice());
+            line.setPartSku(old != null ? old.getPartSku() : part.getSku());             // snapshots: catalogue edits
+            line.setPartName(old != null ? old.getPartName() : part.getName());          // must never rewrite history
+            line.setUnitPrice(old != null ? old.getUnitPrice() : part.getUnitPrice());
             line.setQuantity(qty);
-            line.setLineTotal(pricing.lineTotal(part.getUnitPrice(), qty));
+            line.setLineTotal(pricing.lineTotal(line.getUnitPrice(), qty));
             lines.add(line);
         }
         return lines;
@@ -433,16 +560,20 @@ public class NalogService {
     }
 
     private Customer resolveCustomer(CreateNalogRequest req) {
-        boolean hasId = req.customerId() != null;
-        boolean hasNew = req.newCustomer() != null;
+        return resolveCustomer(req.customerId(), req.newCustomer());
+    }
+
+    private Customer resolveCustomer(Long customerId, CreateNalogRequest.CustomerInput newCustomer) {
+        boolean hasId = customerId != null;
+        boolean hasNew = newCustomer != null;
         if (hasId == hasNew) {
             throw NalogException.invalid("Provide exactly one of customerId or newCustomer");
         }
         if (hasId) {
-            return customerRepository.findById(req.customerId())
-                    .orElseThrow(() -> NalogException.notFound("Customer " + req.customerId() + " not found"));
+            return customerRepository.findById(customerId)
+                    .orElseThrow(() -> NalogException.notFound("Customer " + customerId + " not found"));
         }
-        CreateNalogRequest.CustomerInput in = req.newCustomer();
+        CreateNalogRequest.CustomerInput in = newCustomer;
         Customer c = new Customer();
         c.setFullName(in.fullName().trim());
         c.setAddress(in.address().trim());

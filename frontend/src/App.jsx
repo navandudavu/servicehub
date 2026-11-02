@@ -11,6 +11,7 @@ import Team from './pages/Team';
 import NalozList from './pages/NalozList';
 import NalogNew from './pages/NalogNew';
 import NalogDetail from './pages/NalogDetail';
+import NalogEdit from './pages/NalogEdit';
 import NalogPrintPage from './pages/NalogPrintPage';
 import Reports from './pages/Reports';
 import Parts from './pages/Parts';
@@ -46,6 +47,9 @@ export default function App() {
       } />
       <Route path="/nalozi/:id" element={
         <RequireAuth><Layout><NalogDetail /></Layout></RequireAuth>
+      } />
+      <Route path="/nalozi/:id/edit" element={
+        <RequireAuth><Layout><NalogEdit /></Layout></RequireAuth>
       } />
       <Route path="/nalozi/:id/print" element={
         <RequireAuth><NalogPrintPage /></RequireAuth>

@@ -114,6 +114,8 @@ export interface NalogResponse {
   completedAt: string | null;
   createdAt: string; // ISO-8601 instant
   updatedAt: string;
+  /** Send back as expectedVersion when editing; the server refuses the save if someone changed the nalog meanwhile. */
+  version: number;
 }
 
 // --- error contract (RFC 7807 ProblemDetail from GlobalExceptionHandler) ---
@@ -177,6 +179,8 @@ export interface StatusHistoryView {
 export interface PreviewRequest {
   partLines: PartLineInput[];
   laborHours: DecimalString;
+  /** When editing: price against this nalog (its own rates and the part prices it already holds). */
+  nalogId?: number | null;
 }
 
 export interface NalogPreview {
@@ -202,7 +206,7 @@ export interface PartResponse {
   active: boolean;
 }
 
-export type StockReason = 'INITIAL' | 'MANUAL' | 'NALOG_CREATE' | 'NALOG_CANCEL';
+export type StockReason = 'INITIAL' | 'MANUAL' | 'NALOG_CREATE' | 'NALOG_CANCEL' | 'NALOG_EDIT' | 'NALOG_DELETE';
 
 /** PartDtos.StockMovementView */
 export interface StockMovementView {
@@ -245,6 +249,24 @@ export const NEXT_STATUSES: Record<NalogStatus, readonly NalogStatus[]> = {
   COMPLETED: [],
   CANCELLED: [],
 };
+
+/**
+ * PUT /api/nalozi/{id} (UpdateNalogRequest.java). No money in here either. Status, visit time and assignment are
+ * NOT part of an edit; they have their own endpoints.
+ */
+export interface UpdateNalogRequest {
+  customerId?: number | null;
+  newCustomer?: CustomerInput | null;
+  appliance: ApplianceInput;
+  diagnosis: string;
+  partLines: PartLineInput[];
+  laborHours: DecimalString;
+  paymentType: PaymentType;
+  expectedVersion: number;
+}
+
+/** Statuses that can still be edited (everything except the finished COMPLETED and the CANCELLED ones). */
+export const EDITABLE_STATUSES: readonly NalogStatus[] = ['DRAFT', 'DISPATCHED', 'IN_PROGRESS', 'AWAITING_PARTS'];
 
 /** PATCH /api/nalozi/{id}/assign (admin). technicianId: null un-assigns. */
 export interface AssignRequest {

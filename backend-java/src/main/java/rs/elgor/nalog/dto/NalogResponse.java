@@ -35,7 +35,9 @@ public record NalogResponse(
         Instant scheduledAt,
         Instant completedAt,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        // Send this back as expectedVersion when editing: it detects that someone else changed the nalog meanwhile.
+        Long version
 ) {
 
     public record CustomerView(Long id, String fullName, String address, String city,
@@ -67,6 +69,6 @@ public record NalogResponse(
                         .toList(),
                 n.getPartsTotal(), n.getSubtotal(), n.getVatRate(), n.getVatAmount(), n.getTotal(),
                 n.getPaymentType(), n.getCreatedByName(), n.getAssignedToId(), n.getAssignedToName(), n.getScheduledAt(), n.getCompletedAt(),
-                n.getCreatedAt(), n.getUpdatedAt());
+                n.getCreatedAt(), n.getUpdatedAt(), n.getVersion());
     }
 }

@@ -2,7 +2,7 @@ import axios, { AxiosError, AxiosInstance, Method } from 'axios';
 import type {
   ApiProblem, CreateNalogRequest, CustomerView, CreatePartRequest, NalogListQuery, NalogPreview, NalogResponse,
   NalogStatus, NalogSummary, PageResponse, PartResponse, PreviewRequest, StatusHistoryView,
-  StockAdjustRequest, StockMovementView, NoteView, CreateNoteRequest, TechnicianView, UpdatePartRequest, PhotoView, PhotoCategory, NalogStats, CalendarEntry, ReportSummary,
+  StockAdjustRequest, StockMovementView, NoteView, CreateNoteRequest, UpdateNalogRequest, TechnicianView, UpdatePartRequest, PhotoView, PhotoCategory, NalogStats, CalendarEntry, ReportSummary,
 } from '../types/nalog';
 
 /** Normalised error: the UI never has to look inside an AxiosError. */
@@ -80,6 +80,15 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized }:
     send<NalogResponse>('POST', '/api/nalozi', {
       data: request, headers: { 'Idempotency-Key': idempotencyKey }, safeToRetry: true, signal,
     });
+
+  // Never retried automatically: after a save that succeeded but whose answer got lost, a repeat would be rejected
+  // as a stale form, and the user should look at the nalog instead.
+  const updateNalog = (id: number, request: UpdateNalogRequest) =>
+    send<NalogResponse>('PUT', `/api/nalozi/${id}`, { data: request, safeToRetry: false });
+
+  // Admin only on the server. Never retried.
+  const deleteNalog = (id: number) =>
+    send<void>('DELETE', `/api/nalozi/${id}`, { safeToRetry: false });
 
   const previewNalog = (request: PreviewRequest, signal?: AbortSignal) =>
     send<NalogPreview>('POST', '/api/nalozi/preview', { data: request, safeToRetry: true, signal });
@@ -190,7 +199,7 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized }:
     send<PartResponse>('POST', `/api/parts/${id}/stock`, { data: req, safeToRetry: false });
 
   return {
-    newIdempotencyKey, submitNalog, previewNalog, listNalozi, getNalog, getNalogHistory, changeStatus,
+    newIdempotencyKey, submitNalog, updateNalog, deleteNalog, previewNalog, listNalozi, getNalog, getNalogHistory, changeStatus,
     searchCustomers, assignNalog, listTechnicians, getStats, getCalendar, setSchedule, getReportSummary, fetchReportCsv, listPhotos, uploadPhoto, deletePhoto, fetchPhotoBlob, listNotes, addNote, deleteNote, searchParts, listStockMovements, createPart, updatePart, adjustStock,
   };
 }
