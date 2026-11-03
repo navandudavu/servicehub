@@ -26,3 +26,7 @@ out.txt
 # IDE
 .idea/
 .vscode/
+
+# deploy: runtime data and secrets on the server
+/data/
+/secrets/

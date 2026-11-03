@@ -9,6 +9,7 @@ const customerRoutes = require('./routes/customers');
 const jobRoutes = require('./routes/jobs');
 
 const app = express();
+if (process.env.TRUST_PROXY) app.set('trust proxy', process.env.TRUST_PROXY);
 app.use(cors());
 app.use(express.json());
 

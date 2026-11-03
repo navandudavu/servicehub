@@ -1,0 +1,9 @@
+[Unit]
+Description=ELGOR ServiceHub nocni backup
+After=docker.service
+
+[Service]
+Type=oneshot
+# promenite putanju ako repozitorijum nije u /opt/servicehub
+WorkingDirectory=/opt/servicehub
+ExecStart=/usr/bin/bash /opt/servicehub/deploy/backup.sh
