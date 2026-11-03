@@ -41,12 +41,12 @@ echo "[3/3] Fotografije"
 PREV="$(ls -1d "$BACKUP_DIR"/20??-??-?? 2>/dev/null | grep -v "/$DAY\$" | tail -1 || true)"
 LINK=()
 [ -n "$PREV" ] && [ -d "$PREV/photos" ] && LINK=(--link-dest="$PREV/photos")
-rsync -a "${LINK[@]}" "$DATA_DIR/photos/" "$TMP/photos/"
+rsync -rlt "${LINK[@]}" "$DATA_DIR/photos/" "$TMP/photos/"
 # fotografije koje su stare Node-ove (uploads) idu u isti snimak
 if [ -d "$DATA_DIR/node/uploads" ]; then
   LINK2=()
   [ -n "$PREV" ] && [ -d "$PREV/node-uploads" ] && LINK2=(--link-dest="$PREV/node-uploads")
-  rsync -a "${LINK2[@]}" "$DATA_DIR/node/uploads/" "$TMP/node-uploads/"
+  rsync -rlt "${LINK2[@]}" "$DATA_DIR/node/uploads/" "$TMP/node-uploads/"
 fi
 
 # tek kad je sve uspelo, snimak dobija pravo ime (polovican backup se nikad ne vidi kao backup)
