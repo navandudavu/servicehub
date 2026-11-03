@@ -1,0 +1,10 @@
+[Unit]
+Description=ELGOR ServiceHub backup svake noci u 02:30
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+# ako je racunar bio ugasen u 02:30, backup se uradi cim se podigne
+Persistent=true
+
+[Install]
+WantedBy=timers.target

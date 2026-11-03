@@ -162,8 +162,8 @@ Poslovi bez klijenta ulaze pod klijenta „Nepoznat klijent“. Stari poslovi do
 
 - **Pravi izgled radnog naloga za štampu** (sada je probni) i **podaci firme** (PIB, MB, telefon, račun) u `frontend/src/print/company.ts`.
 - **Prava cena rada i PDV** – sada probno 2500 RSD/h i 20 % u `backend-java/src/main/resources/application.yml`.
-- Android aplikacija nema još beleške, izmenu i brisanje naloga.
-- Postavljanje na server (Docker + Caddy), noćni backup (baza **i** folder sa fotografijama), HTTPS, nov `JWT_SECRET`.
+- Android aplikacija (grana `claude/android-catchup` u repou `elgor_technician`) ima beleške i brisanje naloga, ali ne i izmenu (ona je samo na vebu); još nije kompajlirana.
+- Postavljanje na server: skripte i uputstvo su u `deploy/` (`DEPLOY.md`: Docker + Caddy, HTTPS ili Cloudflare Tunnel, noćni backup baze **i** fotografija, restore, UPS/NUT). **Još nije isprobano na pravom Docker-u**, pa prvo pokretanje i restore treba proveriti ručno.
 - Odluka kada se Node API potpuno gasi (do tada ostaje za prijavu, tim i klijente).
 
 ## Napomene o razvoju

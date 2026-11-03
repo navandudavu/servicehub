@@ -1,0 +1,42 @@
+# SITE_ADDRESS comes from .env:
+#   moj-domen.rs  -> Caddy gets and renews a Let's Encrypt certificate by itself (needs ports 80+443 reachable)
+#   :80           -> plain HTTP (behind a Cloudflare Tunnel, which does the HTTPS, or for a LAN test)
+{
+	# anything coming from a private address (cloudflared, docker network) may tell us the real client IP
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+{$SITE_ADDRESS:":80"} {
+	encode zstd gzip
+
+	# photos from phones: Node allows 25 MB, Java 10 MB
+	request_body {
+		max_size 30MB
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy same-origin
+		-Server
+	}
+
+	# Java nalog-service. Must come before the generic /api rule.
+	@java path /api/nalozi /api/nalozi/* /api/parts /api/parts/*
+	handle @java {
+		reverse_proxy java:8081
+	}
+
+	# Node backend (accounts, login, old jobs)
+	handle /api/* {
+		reverse_proxy node:4000
+	}
+
+	# React app, with fallback to index.html for client-side routes
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

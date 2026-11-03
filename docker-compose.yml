@@ -1,0 +1,84 @@
+# ELGOR ServiceHub - production stack.  Start: docker compose up -d --build
+# Everything is configured through .env (copy .env.example, or run deploy/setup.sh).
+# Only Caddy (80/443) is reachable from outside; postgres, node and java live on the internal network.
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: elgor_nalog
+      POSTGRES_USER: elgor
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD missing in .env}
+      TZ: Europe/Belgrade
+    volumes:
+      - ${DATA_DIR:-./data}/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U elgor -d elgor_nalog"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  node:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET missing in .env}
+      # behind Caddy every request would otherwise look like it comes from Caddy's address
+      TRUST_PROXY: uniquelocal
+    volumes:
+      - ${DATA_DIR:-./data}/node:/data
+      - ./secrets:/secrets:ro
+
+  java:
+    build: ./backend-java
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      node:
+        condition: service_healthy
+    environment:
+      NALOG_DB_URL: jdbc:postgresql://postgres:5432/elgor_nalog
+      NALOG_DB_USER: elgor
+      NALOG_DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      NODE_BACKEND_URL: http://node:4000
+      NALOG_PHOTOS_DIR: /data/photos
+      NALOG_CORS_ORIGINS: ${PUBLIC_URL:-http://localhost}
+      NALOG_PRICING_LABOR_RATE_PER_HOUR: ${LABOR_RATE:-2500.00}
+      NALOG_PRICING_VAT_RATE: ${VAT_RATE:-0.2000}
+    volumes:
+      - ${DATA_DIR:-./data}/photos:/data/photos
+
+  caddy:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - java
+      - node
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+  # Only needed behind CGNAT / without port forwarding:  docker compose --profile tunnel up -d
+  # Needs CLOUDFLARE_TUNNEL_TOKEN in .env; the tunnel's public hostname must point to http://caddy:80
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    depends_on:
+      - caddy
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+
+volumes:
+  caddy_data:
+  caddy_config:
