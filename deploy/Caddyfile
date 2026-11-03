@@ -19,6 +19,10 @@
 	header {
 		X-Content-Type-Options nosniff
 		Referrer-Policy same-origin
+		X-Frame-Options DENY
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		# browsers ignore HSTS on plain http, so this is harmless on the LAN test and active behind https
+		Strict-Transport-Security "max-age=15552000"
 		-Server
 	}
 
