@@ -6,6 +6,7 @@ export interface CompanyInfo {
   pib: string;   // tax id
   mb: string;    // registration number
   bankAccount: string;
+  warranty?: string; // optional line printed above the footer, e.g. the warranty terms
 }
 
 // TODO(uncle): replace with ELGOR's real legal details before printing anything for customers.
@@ -17,4 +18,5 @@ export const COMPANY: CompanyInfo = {
   pib: '000000000',
   mb: '00000000',
   bankAccount: '000-0000000000000-00',
+  warranty: '',
 };
