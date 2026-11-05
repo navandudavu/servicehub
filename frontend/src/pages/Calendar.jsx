@@ -1,7 +1,8 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { nalogApi } from '../api/nalog';
 import { useLang } from '../i18n/LangContext';
+import { usePolling } from '../hooks/usePolling';
 import { NalogStatusTag } from '../components/NalogStatusTag';
 
 function startOfWeek(date) {
@@ -54,6 +55,18 @@ export default function Calendar() {
     load(ctrl.signal);
     return () => ctrl.abort();
   }, [load]);
+
+  // Background refresh of the shown week (no dimming, no error banner), so a visit scheduled or changed
+  // elsewhere appears without F5. A result is dropped if the week changed while it was in flight.
+  const weekKeyRef = useRef(weekStart.getTime());
+  weekKeyRef.current = weekStart.getTime();
+  usePolling(async () => {
+    if (loading) return;
+    const key = weekStart.getTime();
+    const next = await nalogApi.getCalendar(weekStart.toISOString(), addDays(weekStart, 7).toISOString());
+    if (key !== weekKeyRef.current) return;
+    setEntries(next);
+  }, 30000);
 
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const byDay = {};

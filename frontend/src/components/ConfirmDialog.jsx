@@ -9,14 +9,12 @@ export default function ConfirmDialog({ message, onConfirm, onCancel, danger = t
 
   return (
     <div
-      onClick={onCancel}
       style={{
         position: 'fixed', inset: 0, background: 'rgba(28,35,33,0.45)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300, padding: 20
       }}
     >
       <div
-        onClick={(e) => e.stopPropagation()}
         className="card"
         style={{ width: 360, maxWidth: '100%', padding: 22 }}
       >

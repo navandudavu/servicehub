@@ -3,6 +3,7 @@ import { nalogApi } from '../api/nalog';
 import { NalogApiError } from '../api/nalogApi';
 import Modal from './Modal';
 import { useLang } from '../i18n/typedLang';
+import { usePolling } from '../hooks/usePolling';
 import type { PhotoCategory, PhotoView } from '../types/nalog';
 
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -57,6 +58,17 @@ export function NalogPhotos(props: {
 
   useEffect(() => { load(); }, [load]);
 
+  // Background refresh, so a photo taken on the phone shows up without F5. Skipped while this page is
+  // uploading, and a result is dropped if the user uploaded/deleted something while it was in flight.
+  const epoch = useRef(0);
+  usePolling(async () => {
+    if (uploading) return;
+    const seen = epoch.current;
+    const next = await nalogApi.listPhotos(nalogId);
+    if (seen !== epoch.current) return;
+    setPhotos((prev) => (prev.length === next.length && prev.every((p, i) => p.id === next[i].id) ? prev : next));
+  }, 10000);
+
   // full-size view
   useEffect(() => {
     if (!open) { setOpenUrl(null); return; }
@@ -80,6 +92,7 @@ export function NalogPhotos(props: {
     try {
       const created = await nalogApi.uploadPhoto(nalogId, file, category);
       setPhotos((p) => [...p, created]);
+      epoch.current++;
     } catch (err) {
       if (err instanceof NalogApiError) setError(err.message);
     } finally {
@@ -94,6 +107,7 @@ export function NalogPhotos(props: {
     try {
       await nalogApi.deletePhoto(nalogId, target.id);
       setPhotos((p) => p.filter((x) => x.id !== target.id));
+      epoch.current++;
       setOpen((o) => (o?.id === target.id ? null : o));
     } catch (err) {
       if (err instanceof NalogApiError) setError(err.message);

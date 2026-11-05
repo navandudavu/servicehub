@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { nalogApi } from '../api/nalog';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../i18n/LangContext';
+import { usePolling } from '../hooks/usePolling';
 import Spinner from '../components/Spinner';
 
 const STATUS_ORDER = ['DRAFT', 'DISPATCHED', 'IN_PROGRESS', 'AWAITING_PARTS', 'COMPLETED', 'CANCELLED'];
@@ -20,6 +21,9 @@ export default function Dashboard() {
       .catch((err) => { if (err.message !== 'Request cancelled') setError(err.message); });
     return () => ctrl.abort();
   }, []);
+
+  // Background refresh of the numbers, so the dashboard stays current without F5.
+  usePolling(async () => { setStats(await nalogApi.getStats()); }, 30000, !!stats);
 
   if (error) {
     return <div style={{ color: 'var(--danger)', fontSize: 13 }}>{error}</div>;
