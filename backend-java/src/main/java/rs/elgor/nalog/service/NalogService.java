@@ -31,6 +31,7 @@ public class NalogService {
     private final StockMovementRepository movementRepository;
     private final AppUserRepository userRepository;
     private final PricingCalculator pricing;
+    private final NalogPushNotifier pushNotifier;
 
     @PersistenceContext
     private EntityManager em;
@@ -41,7 +42,8 @@ public class NalogService {
                         NalogStatusHistoryRepository historyRepository,
                         StockMovementRepository movementRepository,
                         AppUserRepository userRepository,
-                        PricingCalculator pricing) {
+                        PricingCalculator pricing,
+                        NalogPushNotifier pushNotifier) {
         this.nalogRepository = nalogRepository;
         this.customerRepository = customerRepository;
         this.partRepository = partRepository;
@@ -49,6 +51,7 @@ public class NalogService {
         this.movementRepository = movementRepository;
         this.userRepository = userRepository;
         this.pricing = pricing;
+        this.pushNotifier = pushNotifier;
     }
 
     // ========================================================================
@@ -128,6 +131,11 @@ public class NalogService {
 
         // saveAndFlush: constraint violations surface HERE, inside the transaction.
         Nalog saved = nalogRepository.saveAndFlush(nalog);
+
+        // Tell the technician (not when they assigned it to themselves). Sent only after commit.
+        if (assignee != null && (actor == null || !Objects.equals(assignee.getId(), actor.id()))) {
+            pushNotifier.notifyAssigned(assignee.getId(), saved.getId(), saved.getNalogNumber());
+        }
 
         // 7. Audit rows - same transaction, so they exist if and only if the nalog does.
         for (NalogPartLine l : saved.getPartLines()) {
@@ -398,10 +406,16 @@ public class NalogService {
             throw NalogException.conflict("A " + nalog.getStatus() + " nalog cannot be reassigned");
         }
         AppUser assignee = technicianId == null ? null : requireActiveTechnician(technicianId);
+        Long previousAssignee = nalog.getAssignedToId();
         nalog.setAssignedToId(assignee == null ? null : assignee.getId());
         nalog.setAssignedToName(assignee == null ? null : assignee.getName());
         log.info("Nalog {} assigned to {} by {}", nalog.getNalogNumber(), assignee == null ? "nobody" : assignee.getName(), actor.name());
-        return NalogResponse.from(nalogRepository.saveAndFlush(nalog));
+        Nalog assigned = nalogRepository.saveAndFlush(nalog);
+        if (assignee != null && !Objects.equals(assignee.getId(), previousAssignee)
+                && !Objects.equals(assignee.getId(), actor.id())) {
+            pushNotifier.notifyAssigned(assignee.getId(), assigned.getId(), assigned.getNalogNumber());
+        }
+        return NalogResponse.from(assigned);
     }
 
     /** Customer autocomplete (top 10). Reusing a customer avoids duplicate records per nalog. */

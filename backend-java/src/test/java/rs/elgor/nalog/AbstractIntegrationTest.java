@@ -53,6 +53,7 @@ public abstract class AbstractIntegrationTest {
         }
         r.add("nalog.security.jwt-secret", () -> "test-secret-test-secret-test-secret-123456");
         r.add("nalog.auth.validate-with-node", () -> "false");   // covered by NodeSessionValidatorTest
+        r.add("nalog.push.enabled", () -> "false");
         r.add("nalog.photos.dir", () -> System.getProperty("java.io.tmpdir") + "/nalog-test-photos");
     }
 

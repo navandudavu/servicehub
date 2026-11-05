@@ -7,6 +7,7 @@ const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const customerRoutes = require('./routes/customers');
 const jobRoutes = require('./routes/jobs');
+const notificationRoutes = require('./routes/notifications');
 
 const app = express();
 if (process.env.TRUST_PROXY) app.set('trust proxy', process.env.TRUST_PROXY);
@@ -19,6 +20,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/jobs', jobRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Rukovalac greshkama. Za Multer greshke (prevelika datoteka, pogreshan tip) potrebne su posebne,
 // razumljive poruke – u suprotnom bi potpadale pod opštu grešku 500 (navedenu ispod),

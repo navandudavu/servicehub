@@ -1,4 +1,4 @@
-// Run: node --test backend/test   (no dependencies, no database)
+// Run: cd backend && node --test   (no dependencies, no database)
 const test = require('node:test');
 const assert = require('node:assert');
 const { EventEmitter } = require('node:events');

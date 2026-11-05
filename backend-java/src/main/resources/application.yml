@@ -44,6 +44,9 @@ nalog:
     node-url: ${NODE_BACKEND_URL:http://localhost:4000}
     cache-seconds: 30
     grace-seconds: 600                      # how long a recent 'valid' answer is trusted if Node is down
+  push:
+    # Asks Node to push "nalog assigned" to the technician's phone (Node owns tokens + Firebase). Best effort.
+    enabled: ${NALOG_PUSH_ENABLED:true}
   photos:
     dir: ${NALOG_PHOTOS_DIR:./data/nalog-photos}   # image files; back this folder up together with the database
   cors:

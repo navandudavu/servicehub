@@ -60,6 +60,10 @@ Prvo proverite da li je internet iza CGNAT-a: na ruteru pogledajte WAN IP adresu
 
 Android aplikacija: u podesavanju servera upisite `PUBLIC_URL` (bez `:4000`). Sve ide kroz jednu adresu, Caddy sam razdvaja Node i Java.
 
+### Push obavestenja (dodeljen nalog)
+
+Kad admin dodeli nalog tehnicaru, telefon dobija notifikaciju. Node salje preko Firebase-a, pa treba `secrets/firebase-service-account.json` (iz Firebase konzole: Project settings → Service accounts). Bez tog fajla sve ostalo radi, samo nema notifikacija (Java to ne primeti, greska se samo upisuje u log). Iskljucivanje: `NALOG_PUSH_ENABLED=false`.
+
 ## 4. Backup (obavezno)
 
 ```bash
