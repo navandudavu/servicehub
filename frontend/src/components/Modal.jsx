@@ -1,14 +1,12 @@
 export default function Modal({ title, onClose, children, width = 480 }) {
   return (
     <div
-      onClick={onClose}
       style={{
         position: 'fixed', inset: 0, background: 'rgba(28,35,33,0.45)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20
       }}
     >
       <div
-        onClick={(e) => e.stopPropagation()}
         className="card"
         style={{ width, maxWidth: '100%', maxHeight: '85vh', overflow: 'auto', padding: 24 }}
       >
