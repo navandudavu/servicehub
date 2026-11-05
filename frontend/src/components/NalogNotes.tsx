@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { nalogApi } from '../api/nalog';
 import { NalogApiError } from '../api/nalogApi';
 import ConfirmDialog from './ConfirmDialog';
 import { useLang } from '../i18n/typedLang';
+import { usePolling } from '../hooks/usePolling';
 import type { NoteView } from '../types/nalog';
 
 const MAX_LEN = 2000;
@@ -31,6 +32,16 @@ export function NalogNotes({ nalogId, isAdmin }: { nalogId: number; isAdmin: boo
     return () => ctrl.abort();
   }, [load]);
 
+  // Background refresh: notes written on the phone appear without F5. Same guards as the photo list.
+  const epoch = useRef(0);
+  usePolling(async () => {
+    if (busy) return;
+    const seen = epoch.current;
+    const next = await nalogApi.listNotes(nalogId);
+    if (seen !== epoch.current) return;
+    setNotes((prev) => (prev && prev.length === next.length && prev.every((n, i) => n.id === next[i].id) ? prev : next));
+  }, 10000);
+
   async function add() {
     const body = text.trim();
     if (!body || busy) return;
@@ -38,6 +49,7 @@ export function NalogNotes({ nalogId, isAdmin }: { nalogId: number; isAdmin: boo
     try {
       const created = await nalogApi.addNote(nalogId, { body });
       setNotes((prev) => [...(prev ?? []), created]);
+      epoch.current++;
       setText('');
     } catch (e) {
       setError(e instanceof NalogApiError ? e.message : t('nalogForm_unexpected'));
@@ -52,6 +64,7 @@ export function NalogNotes({ nalogId, isAdmin }: { nalogId: number; isAdmin: boo
     try {
       await nalogApi.deleteNote(nalogId, deleteTarget.id);
       setNotes((prev) => (prev ?? []).filter((n) => n.id !== deleteTarget.id));
+      epoch.current++;
       setDeleteTarget(null);
     } catch (e) {
       setError(e instanceof NalogApiError ? e.message : t('nalogForm_unexpected'));

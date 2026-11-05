@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { nalogApi } from '../api/nalog';
 import { NalogApiError } from '../api/nalogApi';
@@ -9,6 +9,7 @@ import Modal from '../components/Modal';
 import Spinner from '../components/Spinner';
 import { useCurrentUser } from '../context/typedAuth';
 import { useLang } from '../i18n/typedLang';
+import { usePolling } from '../hooks/usePolling';
 import { formatMoney, formatRate } from '../print/formatMoney';
 import { EDITABLE_STATUSES, NEXT_STATUSES, type NalogResponse, type NalogStatus, type StatusHistoryView, type TechnicianView } from '../types/nalog';
 
@@ -62,6 +63,21 @@ export default function NalogDetail() {
     return () => ctrl.abort();
   }, [load]);
 
+  // Background refresh: a status change, photo or note made on the phone shows up without F5. Skipped while
+  // an action of this page is running, and a result is dropped if an action ran while it was in flight.
+  const epoch = useRef(0);
+  usePolling(async () => {
+    if (busy) return;
+    const seen = epoch.current;
+    try {
+      const [n, h] = await Promise.all([nalogApi.getNalog(nalogId), nalogApi.getNalogHistory(nalogId)]);
+      if (seen !== epoch.current) return;
+      setNalog(n); setHistory(h);
+    } catch (e) {
+      if (e instanceof NalogApiError && e.status === 404) setNotFound(true);
+    }
+  }, 10000, !!nalog);
+
   useEffect(() => {
     if (!isAdmin) return;
     nalogApi.listTechnicians().then(setTechnicians).catch(() => { /* dropdown stays empty */ });
@@ -77,6 +93,7 @@ export default function NalogDetail() {
   async function run(action: () => Promise<NalogResponse>) {
     if (busy) return;
     setBusy(true); setError('');
+    epoch.current++;
     try {
       setNalog(await action());
       setHistory(await nalogApi.getNalogHistory(nalogId));
@@ -84,6 +101,7 @@ export default function NalogDetail() {
       setError(e instanceof NalogApiError ? e.message : t('nalogForm_unexpected'));
       await load();                                   // show the server's current truth after a rejected move
     } finally {
+      epoch.current++;
       setBusy(false);
       setConfirmCancel(false);
     }

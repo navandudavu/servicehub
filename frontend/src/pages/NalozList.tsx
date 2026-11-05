@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { nalogApi } from '../api/nalog';
 import { NalogApiError } from '../api/nalogApi';
@@ -7,6 +7,7 @@ import EmptyState from '../components/EmptyState';
 import Spinner from '../components/Spinner';
 import { useCurrentUser } from '../context/typedAuth';
 import { useLang } from '../i18n/typedLang';
+import { usePolling } from '../hooks/usePolling';
 import { formatMoney } from '../print/formatMoney';
 import { NALOG_STATUSES, type NalogStatus, type NalogSummary, type PageResponse, type TechnicianView } from '../types/nalog';
 
@@ -63,6 +64,24 @@ export default function NalozList() {
       .finally(() => { if (!ctrl.signal.aborted) setLoading(false); });
     return () => ctrl.abort();
   }, [status, debouncedQuery, assignedTo, page, isAdmin]);
+
+  // Background refresh of the current page, so new or changed nalozi show up without F5. A result is dropped
+  // if the filters or page changed while it was in flight.
+  const listKey = JSON.stringify([status, debouncedQuery, assignedTo, page, isAdmin]);
+  const listKeyRef = useRef(listKey);
+  listKeyRef.current = listKey;
+  usePolling(async () => {
+    if (loading) return;
+    const key = listKey;
+    const d = await nalogApi.listNalozi({
+      status: status || undefined,
+      q: debouncedQuery || undefined,
+      assignedTo: isAdmin && assignedTo ? Number(assignedTo) : undefined,
+      page, size: PAGE_SIZE,
+    });
+    if (key !== listKeyRef.current) return;
+    setData(d);
+  }, 20000);
 
   const fmtDate = (iso: string) => new Date(iso).toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' });
 
