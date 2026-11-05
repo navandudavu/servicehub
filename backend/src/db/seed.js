@@ -4,7 +4,8 @@ const bcrypt = require('bcryptjs');
 const db = require('./index');
 
 const email = process.argv[2] || 'admin@servicehub.local';
-const password = process.argv[3] || 'admin123';
+const generated = !process.argv[3];
+const password = process.argv[3] || require('crypto').randomBytes(9).toString('base64url');
 const name = process.argv[4] || 'Admin';
 
 const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
@@ -22,4 +23,4 @@ console.log(`Created admin user:
   id: ${info.lastInsertRowid}
   email: ${email}
   password: ${password}
-  (change this password after first login - this is a seed script, not a security feature)`);
+  ${generated ? '(random, shown only now - write it down, then change it after first login)' : '(change this password after first login - this is a seed script, not a security feature)'}`);

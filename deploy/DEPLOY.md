@@ -26,7 +26,13 @@ Docker servisi imaju `restart: unless-stopped`, a Docker se na Ubuntu-u sam podi
 
 ### Prvi admin nalog / stari podaci
 
-Stare podatke (SQLite → Postgres) prenosi `tools/migrate-sqlite-to-postgres.js`, isto kao u razvoju. Ako to ne radite, napravite admina na nacin na koji ste ga pravili do sada.
+Stare podatke (SQLite → Postgres) prenosi `tools/migrate-sqlite-to-postgres.js`, isto kao u razvoju. Ako nemate stare podatke, napravite prvog admina:
+
+```bash
+docker compose exec node node src/db/seed.js
+```
+
+Skripta ispisuje email (`admin@servicehub.local`) i **nasumicnu lozinku, samo jednom**: zapisite je i odmah je promenite posle prve prijave (link *promeni lozinku*). Prijava je ogranicena na 8 pogresnih pokusaja po IP adresi i emailu (i 40 po IP adresi) u 15 minuta.
 
 ### Sta podesiti u `.env`
 

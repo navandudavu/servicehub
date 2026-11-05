@@ -2,10 +2,18 @@
 # Everything is configured through .env (copy .env.example, or run deploy/setup.sh).
 # Only Caddy (80/443) is reachable from outside; postgres, node and java live on the internal network.
 
+# Without a limit Docker keeps every log line forever and slowly fills the disk.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   postgres:
     image: postgres:16
     restart: unless-stopped
+    logging: *logging
     environment:
       POSTGRES_DB: elgor_nalog
       POSTGRES_USER: elgor
@@ -22,6 +30,7 @@ services:
   node:
     build: ./backend
     restart: unless-stopped
+    logging: *logging
     environment:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET missing in .env}
       # behind Caddy every request would otherwise look like it comes from Caddy's address
@@ -33,6 +42,7 @@ services:
   java:
     build: ./backend-java
     restart: unless-stopped
+    logging: *logging
     depends_on:
       postgres:
         condition: service_healthy
@@ -54,6 +64,7 @@ services:
   caddy:
     build: ./frontend
     restart: unless-stopped
+    logging: *logging
     depends_on:
       - java
       - node
@@ -73,6 +84,7 @@ services:
     image: cloudflare/cloudflared:latest
     profiles: ["tunnel"]
     restart: unless-stopped
+    logging: *logging
     depends_on:
       - caddy
     command: tunnel --no-autoupdate run
