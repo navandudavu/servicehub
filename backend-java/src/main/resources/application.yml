@@ -25,6 +25,7 @@ spring:
 
 server:
   port: 8081
+  forward-headers-strategy: native         # behind Caddy: the real client IP (login throttle) comes from X-Forwarded-For
   error:
     include-message: never
     include-stacktrace: never
@@ -34,19 +35,18 @@ nalog:
     vat-rate: 0.2000                        # Serbian standard VAT 20%
     labor-rate-per-hour: 2500.00            # RSD, net of VAT
   security:
-    # SAME value as JWT_SECRET in the Node backend's .env, so one login works on both.
-    # Must be >= 32 bytes (HS256). No default: startup fails if missing/short.
+    # Signs and verifies the login tokens (HS256). Must be >= 32 bytes. No default: startup fails if missing/short.
+    # Changing it logs everybody out.
     jwt-secret: ${JWT_SECRET}
   auth:
-    # Node owns the accounts. Every request's token is re-checked against it (cached), so a deactivated
-    # or demoted user loses access within cache-seconds instead of when the 12 h token expires.
-    validate-with-node: ${NALOG_VALIDATE_SESSIONS:true}
-    node-url: ${NODE_BACKEND_URL:http://localhost:4000}
-    cache-seconds: 30
-    grace-seconds: 600                      # how long a recent 'valid' answer is trusted if Node is down
+    check-session: true                     # every request re-checks the account (exists, active, role, not revoked)
+  bootstrap:
+    enabled: true                           # first start with no accounts: create one admin, password printed once in the log
+    admin-email: ${NALOG_ADMIN_EMAIL:admin@servicehub.local}
   push:
-    # Asks Node to push "nalog assigned" to the technician's phone (Node owns tokens + Firebase). Best effort.
+    # "Nalog assigned" push to the technician's phone via Firebase. Needs the service-account JSON; without it push is off.
     enabled: ${NALOG_PUSH_ENABLED:true}
+    credentials: ${NALOG_FIREBASE_CREDENTIALS:/secrets/firebase-service-account.json}
   photos:
     dir: ${NALOG_PHOTOS_DIR:./data/nalog-photos}   # image files; back this folder up together with the database
   cors:

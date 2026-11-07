@@ -1,7 +1,0 @@
-node_modules/
-data/
-.env
-*.log
-
-# Never commit Firebase service-account credentials
-firebase-service-account.json

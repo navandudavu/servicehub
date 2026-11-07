@@ -21,10 +21,11 @@ fi
 
 # Docker bi inace sam napravio ove fascikle kao root, pa servisi (koji ne rade kao root) ne bi mogli da pisu.
 DATA_DIR="$(grep -E '^DATA_DIR=' .env | cut -d= -f2-)"; DATA_DIR="${DATA_DIR:-./data}"
-mkdir -p "$DATA_DIR/postgres" "$DATA_DIR/node" "$DATA_DIR/photos" ./secrets
-chown 1000:1000   "$DATA_DIR/node"     2>/dev/null || sudo chown 1000:1000   "$DATA_DIR/node"      # korisnik 'node'
+mkdir -p "$DATA_DIR/postgres" "$DATA_DIR/photos" ./secrets
 chown 10001:10001 "$DATA_DIR/photos"   2>/dev/null || sudo chown 10001:10001 "$DATA_DIR/photos"    # korisnik java servisa
-chmod 700 ./secrets
+# ./secrets: citljiv samo vlasniku i grupi java servisa (10001), da servis moze da procita Firebase kljuc
+chgrp 10001 ./secrets 2>/dev/null || sudo chgrp 10001 ./secrets
+chmod 750 ./secrets
 
 echo
 echo "Gotovo. Sledeci koraci:"

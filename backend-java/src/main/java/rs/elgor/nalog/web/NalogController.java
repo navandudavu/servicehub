@@ -142,13 +142,6 @@ public class NalogController {
         return nalogService.searchCustomers(q);
     }
 
-    /** Admin only. Pushes the Node team list in, so every technician is assignable without having logged in first. */
-    @PostMapping("/users/sync")
-    @PreAuthorize("hasRole('ADMIN')")
-    public java.util.Map<String, Integer> syncUsers(@RequestBody @Valid List<UserSyncItem> users) {
-        return java.util.Map.of("synced", directory.sync(users));
-    }
-
     /** For the admin's "assign to..." dropdown. */
     @GetMapping("/technicians")
     @PreAuthorize("hasRole('ADMIN')")

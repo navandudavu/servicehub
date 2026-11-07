@@ -1,62 +1,54 @@
 package rs.elgor.nalog.service;
 
-import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
 
-import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class NalogPushNotifierTest {
 
-    private HttpServer server(int status, AtomicReference<String> auth, AtomicReference<String> body) throws Exception {
-        HttpServer s = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        s.createContext("/api/notifications/nalog-assigned", ex -> {
-            auth.set(ex.getRequestHeaders().getFirst("Authorization"));
-            body.set(new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
-            ex.sendResponseHeaders(status, -1);
-            ex.close();
-        });
-        s.start();
-        return s;
-    }
+    record Sent(long userId, String title, String body, Map<String, String> data) {}
 
-    @Test
-    void forwardsAdminTokenAndIdsOnly() throws Exception {
-        AtomicReference<String> auth = new AtomicReference<>(), body = new AtomicReference<>();
-        HttpServer s = server(202, auth, body);
-        try {
-            var n = new NalogPushNotifier(true, "http://127.0.0.1:" + s.getAddress().getPort() + "/");
-            assertTrue(n.sendNow("tok123", 7L, 42L, "RN-2026-0001"));
-            assertEquals("Bearer tok123", auth.get());
-            assertTrue(body.get().contains("\"userId\":7"));
-            assertTrue(body.get().contains("\"nalogId\":42"));
-            assertTrue(body.get().contains("RN-2026-0001"));
-            assertFalse(body.get().contains("title"));          // text is Node's business, not ours
-        } finally {
-            s.stop(0);
+    static class FakeSender implements PushSender {
+        final List<Sent> sent = new ArrayList<>();
+        boolean explode;
+
+        @Override
+        public void sendToUser(long userId, String title, String body, Map<String, String> data) {
+            if (explode) throw new IllegalStateException("fcm down");
+            sent.add(new Sent(userId, title, body, data));
         }
     }
 
     @Test
-    void refusedOrUnreachableNeverThrows() throws Exception {
-        AtomicReference<String> auth = new AtomicReference<>(), body = new AtomicReference<>();
-        HttpServer s = server(403, auth, body);
-        try {
-            assertFalse(new NalogPushNotifier(true, "http://127.0.0.1:" + s.getAddress().getPort())
-                    .sendNow("t", 1L, 1L, "A-1"));
-        } finally {
-            s.stop(0);
-        }
-        assertFalse(new NalogPushNotifier(true, "http://127.0.0.1:1").sendNow("t", 1L, 1L, "A-1"));
+    void sendsFixedTextAndTheNalogId() {
+        FakeSender s = new FakeSender();
+        new NalogPushNotifier(true, s).sendNow(7L, 42L, "N-2026-000001");
+        assertEquals(1, s.sent.size());
+        Sent m = s.sent.get(0);
+        assertEquals(7L, m.userId());
+        assertEquals("Novi radni nalog", m.title());
+        assertEquals("Dodeljen vam je nalog N-2026-000001", m.body());
+        assertEquals("42", m.data().get("nalogId"));
+        assertEquals("nalog_assigned", m.data().get("type"));
     }
 
     @Test
-    void disabledDoesNothing() {
-        new NalogPushNotifier(false, "http://127.0.0.1:1").notifyAssigned(1L, 1L, "A-1");
+    void aFailingSenderNeverThrows() {
+        FakeSender s = new FakeSender();
+        s.explode = true;
+        new NalogPushNotifier(true, s).sendNow(1L, 1L, "A-1");           // must not throw
+        assertTrue(s.sent.isEmpty());
+    }
+
+    @Test
+    void disabledSendsNothing() {
+        FakeSender s = new FakeSender();
+        new NalogPushNotifier(false, s).notifyAssigned(1L, 1L, "A-1");
+        assertTrue(s.sent.isEmpty());
     }
 }

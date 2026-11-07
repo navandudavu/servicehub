@@ -11,9 +11,9 @@
 {$SITE_ADDRESS:":80"} {
 	encode zstd gzip
 
-	# photos from phones: Node allows 25 MB, Java 10 MB
+	# photos from phones (the Java service itself accepts at most 10 MB per photo)
 	request_body {
-		max_size 30MB
+		max_size 15MB
 	}
 
 	header {
@@ -26,15 +26,9 @@
 		-Server
 	}
 
-	# Java nalog-service. Must come before the generic /api rule.
-	@java path /api/nalozi /api/nalozi/* /api/parts /api/parts/*
-	handle @java {
-		reverse_proxy java:8081
-	}
-
-	# Node backend (accounts, login, old jobs)
+	# The one backend: accounts, nalozi, customers, parts, photos, reports
 	handle /api/* {
-		reverse_proxy node:4000
+		reverse_proxy java:8081
 	}
 
 	# React app, with fallback to index.html for client-side routes

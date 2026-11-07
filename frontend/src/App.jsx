@@ -4,7 +4,6 @@ import Layout from './components/Layout';
 import Spinner from './components/Spinner';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
-import JobBoard from './pages/JobBoard';
 import Calendar from './pages/Calendar';
 import Customers from './pages/Customers';
 import Team from './pages/Team';
@@ -35,9 +34,6 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/" element={
         <RequireAuth><Layout><Dashboard /></Layout></RequireAuth>
-      } />
-      <Route path="/jobs" element={
-        <RequireAuth><Layout><JobBoard /></Layout></RequireAuth>
       } />
       <Route path="/nalozi" element={
         <RequireAuth><Layout><NalozList /></Layout></RequireAuth>

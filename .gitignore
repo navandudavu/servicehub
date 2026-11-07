@@ -13,8 +13,9 @@ backend/data/
 backend/uploads/
 backend-java/data/
 
-# generated import (contains customer data)
+# generated import (contains customer data) and the one-time accounts export (contains password hashes)
 tools/import.sql
+users-export.sql
 
 # build output / dependencies / logs
 node_modules/

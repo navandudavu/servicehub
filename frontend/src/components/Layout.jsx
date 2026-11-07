@@ -125,7 +125,7 @@ function ChangePasswordModal({ onClose }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (newPassword.length < 4) return setError(t('changePwModal_minLength'));
+    if (newPassword.length < 8) return setError(t('changePwModal_minLength'));
     setBusy(true);
     setError('');
     try {

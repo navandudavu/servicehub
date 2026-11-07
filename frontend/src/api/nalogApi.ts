@@ -1,6 +1,6 @@
 import axios, { AxiosError, AxiosInstance, Method } from 'axios';
 import type {
-  ApiProblem, CreateNalogRequest, CustomerView, CreatePartRequest, NalogListQuery, NalogPreview, NalogResponse,
+  ApiProblem, CreateNalogRequest, CustomerDetail, CustomerInput, CustomerView, CreatePartRequest, NalogListQuery, NalogPreview, NalogResponse,
   NalogStatus, NalogSummary, PageResponse, PartResponse, PreviewRequest, StatusHistoryView,
   StockAdjustRequest, StockMovementView, NoteView, CreateNoteRequest, UpdateNalogRequest, TechnicianView, UpdatePartRequest, PhotoView, PhotoCategory, NalogStats, CalendarEntry, ReportSummary,
 } from '../types/nalog';
@@ -112,27 +112,25 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized }:
   const assignNalog = (id: number, technicianId: number | null, signal?: AbortSignal) =>
     send<NalogResponse>('PATCH', `/api/nalozi/${id}/assign`, { data: { technicianId }, safeToRetry: true, signal });
 
-  /**
-   * Node owns the real user accounts. Send a fresh, complete snapshot every time
-   * the admin opens a technician-backed screen. The Java endpoint reconciles the
-   * snapshot, including accounts deleted or deactivated in the Team tab.
-   */
-  const syncUsers = async (signal?: AbortSignal) => {
-    const users = await send<Array<{ id: number; name: string; role: string; active: number | boolean }>>(
-      'GET', '/api/users', { safeToRetry: true, signal });
-    if (!Array.isArray(users) || users.length === 0) {
-      throw new NalogApiError('The Team service returned an empty user list; technician sync was not applied.', null);
-    }
-    await send('POST', '/api/nalozi/users/sync', {
-      data: users.map((u) => ({ id: u.id, name: u.name, role: u.role, active: !!u.active })),
-      safeToRetry: true, signal,
-    });
-  };
+  const listTechnicians = (signal?: AbortSignal) =>
+    send<TechnicianView[]>('GET', '/api/nalozi/technicians', { safeToRetry: true, signal });
 
-  const listTechnicians = async (signal?: AbortSignal) => {
-    await syncUsers(signal);
-    return send<TechnicianView[]>('GET', '/api/nalozi/technicians', { safeToRetry: true, signal });
-  };
+  // ---- customers page (the same customer table the nalog form uses) ----
+  const listCustomers = (q?: string, signal?: AbortSignal) =>
+    send<CustomerView[]>('GET', '/api/customers', { params: q ? { q } : {}, safeToRetry: true, signal });
+
+  const getCustomer = (id: number, signal?: AbortSignal) =>
+    send<CustomerDetail>('GET', `/api/customers/${id}`, { safeToRetry: true, signal });
+
+  const createCustomer = (body: CustomerInput) =>
+    send<CustomerView>('POST', '/api/customers', { data: body, safeToRetry: false });
+
+  const updateCustomer = (id: number, body: CustomerInput) =>
+    send<CustomerView>('PUT', `/api/customers/${id}`, { data: body, safeToRetry: true });
+
+  // admin only on the server; 409 when the customer has nalozi
+  const deleteCustomer = (id: number) =>
+    send<{ ok: boolean }>('DELETE', `/api/customers/${id}`, { safeToRetry: false });
 
   // ---- dashboard / calendar / schedule ----
   const getStats = (signal?: AbortSignal) =>
@@ -200,7 +198,7 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized }:
 
   return {
     newIdempotencyKey, submitNalog, updateNalog, deleteNalog, previewNalog, listNalozi, getNalog, getNalogHistory, changeStatus,
-    searchCustomers, assignNalog, listTechnicians, getStats, getCalendar, setSchedule, getReportSummary, fetchReportCsv, listPhotos, uploadPhoto, deletePhoto, fetchPhotoBlob, listNotes, addNote, deleteNote, searchParts, listStockMovements, createPart, updatePart, adjustStock,
+    searchCustomers, listCustomers, getCustomer, createCustomer, updateCustomer, deleteCustomer, assignNalog, listTechnicians, getStats, getCalendar, setSchedule, getReportSummary, fetchReportCsv, listPhotos, uploadPhoto, deletePhoto, fetchPhotoBlob, listNotes, addNote, deleteNote, searchParts, listStockMovements, createPart, updatePart, adjustStock,
   };
 }
 

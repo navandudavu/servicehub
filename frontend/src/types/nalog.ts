@@ -74,6 +74,24 @@ export interface CustomerView {
   locationNotes: string | null;
 }
 
+/** Mirrors CustomerDtos.CustomerNalog (one line of a customer's history). */
+export interface CustomerNalog {
+  id: number;
+  nalogNumber: string;
+  status: NalogStatus;
+  createdAt: string; // ISO instant
+  applianceType: ApplianceType | null;
+  applianceBrand: string | null;
+  applianceModel: string | null;
+  total: DecimalString;
+}
+
+/** Mirrors CustomerDtos.CustomerDetail (GET /api/customers/{id}). Create and edit send a CustomerInput. */
+export interface CustomerDetail {
+  customer: CustomerView;
+  nalozi: CustomerNalog[];
+}
+
 export interface ApplianceView {
   type: ApplianceType;
   brand: string;

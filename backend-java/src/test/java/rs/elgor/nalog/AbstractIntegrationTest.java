@@ -52,7 +52,8 @@ public abstract class AbstractIntegrationTest {
             r.add("spring.datasource.password", () -> System.getenv().getOrDefault("NALOG_TEST_DB_PASSWORD", "dev"));
         }
         r.add("nalog.security.jwt-secret", () -> "test-secret-test-secret-test-secret-123456");
-        r.add("nalog.auth.validate-with-node", () -> "false");   // covered by NodeSessionValidatorTest
+        r.add("nalog.auth.check-session", () -> "false");          // the session filter has its own test
+        r.add("nalog.bootstrap.enabled", () -> "false");           // tests create their own users
         r.add("nalog.push.enabled", () -> "false");
         r.add("nalog.photos.dir", () -> System.getProperty("java.io.tmpdir") + "/nalog-test-photos");
     }

@@ -1,6 +1,6 @@
 # Postavljanje na server (Ubuntu + Docker)
 
-Jedan namenski racunar, UPS, Docker. Spolja je dostupan samo Caddy (80/443); Postgres, Node i Java su na internoj Docker mrezi.
+Jedan namenski racunar, UPS, Docker. Spolja je dostupan samo Caddy (80/443); Postgres i Java (jedini backend) su na internoj Docker mrezi.
 
 > Ništa od ovoga nije pokrenuto ni testirano na pravom Docker-u (razvojno okruženje nema Docker daemon). Prvo pokretanje radite uz nadzor, a **backup i restore isprobajte pre nego što iko počne da radi u sistemu.**
 
@@ -24,15 +24,17 @@ docker compose ps           # sve 'healthy'/'running'
 
 Docker servisi imaju `restart: unless-stopped`, a Docker se na Ubuntu-u sam podize pri startu, pa se ceo sistem sam vraca posle restarta.
 
-### Prvi admin nalog / stari podaci
+### Prvi admin nalog
 
-Stare podatke (SQLite → Postgres) prenosi `tools/migrate-sqlite-to-postgres.js`, isto kao u razvoju. Ako nemate stare podatke, napravite prvog admina:
+Pri prvom startu, kad niko ne moze da se prijavi, Java servis sam pravi jednog administratora i **jednom** upisuje nasumicnu lozinku u log:
 
 ```bash
-docker compose exec node node src/db/seed.js
+docker compose logs java | grep -A4 "FIRST ADMIN"
 ```
 
-Skripta ispisuje email (`admin@servicehub.local`) i **nasumicnu lozinku, samo jednom**: zapisite je i odmah je promenite posle prve prijave (link *promeni lozinku*). Prijava je ogranicena na 8 pogresnih pokusaja po IP adresi i emailu (i 40 po IP adresi) u 15 minuta.
+Email je `ADMIN_EMAIL` iz `.env` (podrazumevano `admin@servicehub.local`). Zapisite lozinku i odmah je promenite posle prve prijave (link *promeni lozinku*). Prijava je ogranicena na 8 pogresnih pokusaja po IP adresi i emailu (i 40 po IP adresi) u 15 minuta; lozinka ima najmanje 8 znakova.
+
+**Prelazak sa starog Node servera** (ako vec imate korisnike u starom sistemu): vidi odeljak *Prelazak sa starog Node servera* u `README.md` (`migrate-users-from-node.sh` na staroj verziji, pa `import-users.sh` posle prelaska). Stare poslove (SQLite) prenosi `tools/migrate-sqlite-to-postgres.js`.
 
 ### Sta podesiti u `.env`
 
@@ -40,6 +42,7 @@ Skripta ispisuje email (`admin@servicehub.local`) i **nasumicnu lozinku, samo je
 |---|---|
 | `SITE_ADDRESS` | domen (`servis.vasafirma.rs`) → automatski HTTPS; ili `:80` iza tunela / za test u LAN-u |
 | `PUBLIC_URL` | kako telefoni/browser dolaze do servera, npr. `https://servis.vasafirma.rs` |
+| `ADMIN_EMAIL` | email prvog administratora (samo pri prvom startu) |
 | `LABOR_RATE`, `VAT_RATE` | prave cene (neto, bez PDV-a) i PDV, bez rebuild-a |
 | `BACKUP_DIR`, `REQUIRE_MOUNT` | gde ide backup (**drugi disk**) i putanja tacke montiranja tog diska |
 | `BACKUP_REMOTE` | opciono: rsync odrediste van racunara |
@@ -58,11 +61,20 @@ Prvo proverite da li je internet iza CGNAT-a: na ruteru pogledajte WAN IP adresu
 3. U `.env`: `SITE_ADDRESS=:80`, `PUBLIC_URL=https://servis.vasafirma.rs`, `CLOUDFLARE_TUNNEL_TOKEN=...`
 4. `docker compose --profile tunnel up -d`. HTTPS radi Cloudflare, portovi na ruteru se ne diraju.
 
-Android aplikacija: u podesavanju servera upisite `PUBLIC_URL` (bez `:4000`). Sve ide kroz jednu adresu, Caddy sam razdvaja Node i Java.
+Android aplikacija: u podesavanju servera upisite `PUBLIC_URL` (bez porta). Sve ide kroz jednu adresu, do Java servisa.
 
 ### Push obavestenja (dodeljen nalog)
 
-Kad admin dodeli nalog tehnicaru, telefon dobija notifikaciju. Node salje preko Firebase-a, pa treba `secrets/firebase-service-account.json` (iz Firebase konzole: Project settings → Service accounts). Bez tog fajla sve ostalo radi, samo nema notifikacija (Java to ne primeti, greska se samo upisuje u log). Iskljucivanje: `NALOG_PUSH_ENABLED=false`.
+Kad admin dodeli nalog tehnicaru, telefon dobija notifikaciju; dodir otvara taj nalog. Java salje preko Firebase-a, pa treba kljuc `secrets/firebase-service-account.json` (Firebase konzola: Project settings → Service accounts → Generate new private key). Servis ne radi kao root, pa mu fajl mora biti citljiv:
+
+```bash
+sudo chgrp 10001 secrets/firebase-service-account.json
+chmod 640 secrets/firebase-service-account.json
+docker compose restart java
+docker compose logs java | grep -i "push"     # 'Push notifications are ON'
+```
+
+Bez tog fajla sve ostalo radi, samo nema notifikacija (u logu stoji 'push notifications are OFF'). Iskljucivanje: `NALOG_PUSH_ENABLED=false`. Telefon mora da se prijavi bar jednom posle prelaska (tada salje svoj FCM token).
 
 ## 4. Backup (obavezno)
 
@@ -70,7 +82,7 @@ Kad admin dodeli nalog tehnicaru, telefon dobija notifikaciju. Node salje preko 
 bash deploy/backup.sh       # rucno, za probu
 ```
 
-Cuva: Postgres dump, SQLite (nalozi korisnika i stari poslovi, online backup) i fotografije (hard-link snimci, zauzimaju samo novo) u `$BACKUP_DIR/YYYY-MM-DD/`; brise snimke starije od 30 dana (`KEEP_DAYS`).
+Cuva: Postgres dump (nalozi, klijenti, korisnici, magacin) i fotografije (hard-link snimci, zauzimaju samo novo) u `$BACKUP_DIR/YYYY-MM-DD/`; brise snimke starije od 30 dana (`KEEP_DAYS`).
 
 Nocni raspored (02:30, nadoknadjuje se ako je racunar bio ugasen):
 
@@ -131,9 +143,9 @@ Test: izvucite UPS iz struje na minut i gledajte `upsc ups ups.status` (`OB` = n
 
 ```bash
 docker compose ps
-docker compose logs -f java          # ili node / caddy / postgres
+docker compose logs -f java          # ili caddy / postgres
 git pull && docker compose up -d --build    # nova verzija; migracije baze idu same
 ```
 Pre svake nove verzije napravite `bash deploy/backup.sh`.
 
-Podaci su u `DATA_DIR` (`./data`): `postgres/`, `node/`, `photos/`. Ne brisati, ne ukljucivati u git.
+Podaci su u `DATA_DIR` (`./data`): `postgres/` i `photos/` (`node/` je ostatak starog servera i moze se obrisati kad sve proverite). Ne brisati, ne ukljucivati u git.

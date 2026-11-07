@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
-import { api } from '../api/client';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { nalogApi } from '../api/nalog';
+import { NalogStatusTag } from '../components/NalogStatusTag';
 import { useLang } from '../i18n/LangContext';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -17,7 +20,7 @@ export default function Customers() {
   async function load() {
     setLoading(true);
     try {
-      const data = await api.customers.list(search);
+      const data = await nalogApi.listCustomers(search.trim() || undefined);
       setCustomers(data);
     } finally {
       setLoading(false);
@@ -73,7 +76,7 @@ export default function Customers() {
                   onMouseEnter={(e) => e.currentTarget.style.background = 'var(--paper)'}
                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                 >
-                  <Td><strong>{c.name}</strong></Td>
+                  <Td><strong>{c.fullName}</strong></Td>
                   <Td>{c.phone || '—'}</Td>
                   <Td>{c.address || '—'}</Td>
                 </tr>
@@ -105,16 +108,21 @@ function NewCustomerModal({ onClose, onCreated }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
+  const [city, setCity] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
     if (!name.trim()) return setError(t('customers_nameRequired'));
+    if (!phone.trim()) return setError(t('customers_phoneRequired'));
+    if (!address.trim()) return setError(t('customers_addressRequired'));
     setBusy(true);
     setError('');
     try {
-      await api.customers.create({ name: name.trim(), phone: phone.trim() || undefined, address: address.trim() || undefined });
+      await nalogApi.createCustomer({
+        fullName: name.trim(), phone: phone.trim(), address: address.trim(), city: city.trim() || null
+      });
       onCreated();
     } catch (err) {
       setError(err.message);
@@ -132,11 +140,15 @@ function NewCustomerModal({ onClose, onCreated }) {
         </div>
         <div className="field">
           <label>{t('customers_phone')}</label>
-          <input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} required />
         </div>
         <div className="field">
           <label>{t('customers_address')}</label>
-          <input className="input" value={address} onChange={(e) => setAddress(e.target.value)} />
+          <input className="input" value={address} onChange={(e) => setAddress(e.target.value)} required />
+        </div>
+        <div className="field">
+          <label>{t('customers_city')}</label>
+          <input className="input" value={city} onChange={(e) => setCity(e.target.value)} />
         </div>
         {error && <div style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 12 }}>{error}</div>}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
@@ -150,30 +162,23 @@ function NewCustomerModal({ onClose, onCreated }) {
 
 function CustomerDetailModal({ customerId, onClose, onChanged }) {
   const { t } = useLang();
-  const [customer, setCustomer] = useState(null);
-  const [showAddAppliance, setShowAddAppliance] = useState(false);
-  const [applianceType, setApplianceType] = useState('');
-  const [applianceBrand, setApplianceBrand] = useState('');
-  const [applianceModel, setApplianceModel] = useState('');
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
+  const { user } = useAuth();
+  const [detail, setDetail] = useState(null);
   const [deleteError, setDeleteError] = useState('');
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  async function load() {
-    const data = await api.customers.get(customerId);
-    setCustomer(data);
-  }
-
-  useEffect(() => { load(); // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    let alive = true;
+    nalogApi.getCustomer(customerId).then((d) => { if (alive) setDetail(d); }).catch((err) => { if (alive) setDeleteError(err.message); });
+    return () => { alive = false; };
   }, [customerId]);
 
   async function handleConfirmDelete() {
     setDeleteBusy(true);
     setDeleteError('');
     try {
-      await api.customers.delete(customerId);
+      await nalogApi.deleteCustomer(customerId);
       onChanged();
       onClose();
     } catch (err) {
@@ -184,88 +189,32 @@ function CustomerDetailModal({ customerId, onClose, onChanged }) {
     }
   }
 
-  async function handleAddAppliance(e) {
-    e.preventDefault();
-    if (!applianceType.trim()) return setError(t('customers_applianceTypeRequired'));
-    setBusy(true);
-    setError('');
-    try {
-      await api.customers.addAppliance(customerId, {
-        type: applianceType.trim(), brand: applianceBrand.trim() || undefined, model: applianceModel.trim() || undefined
-      });
-      setApplianceType(''); setApplianceBrand(''); setApplianceModel('');
-      setShowAddAppliance(false);
-      await load();
-      onChanged();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (!customer) return null;
+  if (!detail) return null;
+  const c = detail.customer;
 
   return (
-    <Modal title={customer.name} onClose={onClose} width={520}>
+    <Modal title={c.fullName} onClose={onClose} width={520}>
       <div style={{ fontSize: 13.5, marginBottom: 18, color: 'var(--stone)' }}>
-        {customer.phone && <div>{customer.phone}</div>}
-        {customer.address && <div>{customer.address}</div>}
-      </div>
-
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--stone)' }}>{t('customers_appliances')}</div>
-          <button className="btn-secondary btn-xs" onClick={() => setShowAddAppliance(!showAddAppliance)}>
-            {showAddAppliance ? t('newJob_cancel') : t('customers_addAppliance')}
-          </button>
-        </div>
-
-        {showAddAppliance && (
-          <form onSubmit={handleAddAppliance} className="card" style={{ padding: 12, marginBottom: 10 }}>
-            <div className="field">
-              <label>{t('customers_applianceType')}</label>
-              <input className="input" value={applianceType} onChange={(e) => setApplianceType(e.target.value)}
-                placeholder={t('customers_applianceTypePlaceholder')} required autoFocus />
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <div className="field" style={{ flex: 1 }}>
-                <label>{t('customers_brand')}</label>
-                <input className="input" value={applianceBrand} onChange={(e) => setApplianceBrand(e.target.value)} />
-              </div>
-              <div className="field" style={{ flex: 1 }}>
-                <label>{t('customers_model')}</label>
-                <input className="input" value={applianceModel} onChange={(e) => setApplianceModel(e.target.value)} />
-              </div>
-            </div>
-            {error && <div style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 10 }}>{error}</div>}
-            <button type="submit" className="btn" disabled={busy} style={{ width: '100%', justifyContent: 'center' }}>
-              {busy ? t('customers_saving') : t('customers_addApplianceSubmit')}
-            </button>
-          </form>
-        )}
-
-        {customer.appliances.length === 0 && !showAddAppliance && (
-          <div style={{ fontSize: 13, color: 'var(--stone)' }}>{t('customers_noAppliances')}</div>
-        )}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {customer.appliances.map((a) => (
-            <div key={a.id} className="card" style={{ padding: '8px 12px', fontSize: 13 }}>
-              <strong>{a.type}</strong>{a.brand ? ` — ${a.brand} ${a.model || ''}` : ''}
-            </div>
-          ))}
-        </div>
+        <div>{c.phone}</div>
+        <div>{c.address}{c.city ? `, ${c.city}` : ''}</div>
+        {c.email && <div>{c.email}</div>}
+        {c.locationNotes && <div>{c.locationNotes}</div>}
       </div>
 
       <div style={{ marginBottom: 20 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--stone)', marginBottom: 8 }}>{t('customers_jobHistory')}</div>
-        {customer.jobs.length === 0 && <div style={{ fontSize: 13, color: 'var(--stone)' }}>{t('customers_noJobs')}</div>}
+        {detail.nalozi.length === 0 && <div style={{ fontSize: 13, color: 'var(--stone)' }}>{t('customers_noJobs')}</div>}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {customer.jobs.map((j) => (
-            <div key={j.id} className="card" style={{ padding: '8px 12px', fontSize: 13, display: 'flex', justifyContent: 'space-between' }}>
-              <span>{j.title}</span>
-              <span className="tag">{t(`status_${j.status}`)}</span>
-            </div>
+          {detail.nalozi.map((n) => (
+            <Link key={n.id} to={`/nalozi/${n.id}`} className="card"
+              style={{ padding: '8px 12px', fontSize: 13, display: 'flex', justifyContent: 'space-between', gap: 8, textDecoration: 'none', color: 'inherit' }}>
+              <span>
+                <strong>{n.nalogNumber}</strong>
+                {n.applianceBrand ? ` — ${n.applianceBrand} ${n.applianceModel || ''}` : ''}
+                <span style={{ color: 'var(--stone)' }}> · {new Date(n.createdAt).toLocaleDateString()}</span>
+              </span>
+              <NalogStatusTag status={n.status} />
+            </Link>
           ))}
         </div>
       </div>
@@ -275,19 +224,17 @@ function CustomerDetailModal({ customerId, onClose, onChanged }) {
           {deleteError}
         </div>
       )}
-      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
-        <button
-          className="btn-danger-outline btn-sm"
-          onClick={() => setShowDeleteConfirm(true)}
-          disabled={deleteBusy}
-        >
-          {t('customers_delete')}
-        </button>
-      </div>
+      {user?.role === 'admin' && (
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+          <button className="btn-danger-outline btn-sm" onClick={() => setShowDeleteConfirm(true)} disabled={deleteBusy}>
+            {t('customers_delete')}
+          </button>
+        </div>
+      )}
 
       {showDeleteConfirm && (
         <ConfirmDialog
-          message={t('customers_deleteConfirm', customer.name)}
+          message={t('customers_deleteConfirm', c.fullName)}
           onConfirm={handleConfirmDelete}
           onCancel={() => setShowDeleteConfirm(false)}
           busy={deleteBusy}
