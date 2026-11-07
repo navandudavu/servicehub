@@ -67,10 +67,21 @@ public class NalogStatsService {
                     + OPEN + " AND :admin GROUP BY 1 ORDER BY c DESC, name", uid))) {
                 perTech.add(new NalogStats.TechCount((String) r[0], ((Number) r[1]).longValue()));
             }
-            for (Object[] r : rows(q("SELECT coalesce(n.assigned_to_name, '-') AS name, "
-                    + "coalesce(sum(n.labor_hours) FILTER (WHERE n.status = 'COMPLETED'), 0) AS total, "
-                    + "coalesce(sum(n.labor_hours) FILTER (WHERE n.status = 'COMPLETED' AND n.completed_at >= :week), 0) AS wk "
-                    + "FROM nalog n WHERE :admin GROUP BY 1 ORDER BY total DESC, name", uid)
+            // Driven by the team (app_user), so every technician is listed, also with 0 hours and also when renamed.
+            // Nalozi whose technician was deleted (assigned_to_id is NULL, only the name is left) and unassigned ones
+            // are added as extra rows, but only if they carry hours.
+            String done = "sum(n.labor_hours) FILTER (WHERE n.status = 'COMPLETED')";
+            String doneWeek = "sum(n.labor_hours) FILTER (WHERE n.status = 'COMPLETED' AND n.completed_at >= :week)";
+            for (Object[] r : rows(q("SELECT name, total, wk FROM ("
+                    + " SELECT u.name AS name, coalesce(" + done + ", 0) AS total, coalesce(" + doneWeek + ", 0) AS wk"
+                    + " FROM app_user u LEFT JOIN nalog n ON n.assigned_to_id = u.id"
+                    + " WHERE u.role = 'technician' AND (u.active OR n.id IS NOT NULL) AND :admin"
+                    + " GROUP BY u.id, u.name"
+                    + " UNION ALL"
+                    + " SELECT coalesce(n.assigned_to_name, '-'), coalesce(" + done + ", 0), coalesce(" + doneWeek + ", 0)"
+                    + " FROM nalog n WHERE n.assigned_to_id IS NULL GROUP BY 1"
+                    + " HAVING coalesce(" + done + ", 0) > 0"
+                    + ") x ORDER BY total DESC, name", uid)
                     .setParameter("week", weekStart))) {
                 hours.add(new NalogStats.TechHours((String) r[0], dec(r[1]), dec(r[2])));
             }
