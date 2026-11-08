@@ -184,8 +184,30 @@ Nova instalacija ovo ne traži.
 
 - **Pravi izgled radnog naloga za štampu** (sada je probni) i **podaci firme** (PIB, MB, telefon, račun) u `frontend/src/print/company.ts`.
 - **Prava cena rada i PDV** – sada probno 2500 RSD/h i 20 % u `backend-java/src/main/resources/application.yml`.
-- Android aplikacija (grana `claude/android-catchup` u repou `elgor_technician`) ima beleške i brisanje naloga, ali ne i izmenu (ona je samo na vebu); još nije kompajlirana.
-- Postavljanje na server: skripte i uputstvo su u `deploy/` (`DEPLOY.md`: Docker + Caddy, HTTPS ili Cloudflare Tunnel, noćni backup baze **i** fotografija, restore, UPS/NUT). **Još nije isprobano na pravom Docker-u**, pa prvo pokretanje i restore treba proveriti ručno.
+- Android aplikacija (repo `elgor_technician`, grana `main`) ima beleške i brisanje naloga, ali ne i izmenu (ona je samo na vebu). Kompajlira se u Android Studiju.
+- Postavljanje na server: skripte i uputstvo su u `deploy/` (`DEPLOY.md`: Docker + Caddy, HTTPS ili Cloudflare Tunnel, noćni backup baze **i** fotografija, restore, UPS/NUT). Docker build prolazi, ali **pun restore i prelazak sa Node servera još nisu isprobani na pravom serveru**, pa ih treba proveriti ručno.
+- **Uvoz istorije iz starog PHP programa** (oko 50.000 naloga) – vidi sledeći odeljak.
+- Moguće kasnije: istorija opreme po serijskom broju, dodatni izveštaji (prosečna vrednost naloga, najčešće popravljani uređaji), pretraga po datumu i klijentu. Rezervacija delova, particionisanje baze i slično nisu potrebni za ovu veličinu firme.
+
+## Uvoz istorije iz starog PHP programa (planirano)
+
+Stari program je PHP + (verovatno) MySQL/MariaDB na domenu i serveru prethodnog programera; vlasnik firme nema sopstveni pristup. Pre bilo kog uvoza:
+
+1. Utvrditi ko je upisan kao vlasnik domena (WHOIS / RNIDS) i ko plaća hosting, i da li postoji ugovor ili račun koji reguliše vlasništvo nad podacima.
+2. Od vlasnika firme zatražiti običnu rezervnu kopiju: SQL dump baze i fajlove (fotografije, PDF). Prvo samo **strukturu** (bez podataka), pa pun dump.
+3. Rad samo na kopiji. Ništa se ne dira na živom starom sistemu, niti se ulazi na server bez ovlašćenja.
+
+Plan uvoza (kad stignu struktura i uzorak): samo administrator, probni prolaz (pregled i lista problematičnih redova) pa potvrda; paketi u zasebnim transakcijama; izveštaj o neuspelim redovima; ponovno pokretanje ne pravi duplikate. Uvezeni nalozi se vode kao završeni sa originalnim datumima i oznakom „uvezeno“, bez skidanja sa magacina i bez obaveštenja, i ne ulaze u nedeljne brojke na tabli. Klijenti se spajaju po broju telefona. Stara cena se tretira kao ukupan iznos, a PDV se računa unazad u Javi (BigDecimal, HALF_UP). Treba rešiti i kodiranje znakova (Windows-1250 / latin2 / dvostruki UTF-8), ćirilicu i latinicu, tekstualne datume i cene, i redove označene kao obrisani.
+
+## Gubitak pristupa administratoru
+
+Lozinka prvog administratora se ispisuje samo jednom u logu (`docker compose logs java | grep -A3 "FIRST ADMIN"`). Ako je nema, lozinka se menja direktno u bazi:
+```bash
+HASH=$(docker run --rm httpd:2.4 htpasswd -nbBC 10 x 'NovaLozinka123' | cut -d: -f2)
+docker compose exec -T postgres psql -U elgor -d elgor_nalog \
+  -c "UPDATE app_user SET password_hash = '$HASH', active = true, tokens_valid_after = extract(epoch from now())::bigint WHERE role = 'admin' RETURNING id, email, active;"
+```
+Poruka „Too many failed attempts“ je ograničenje prijave (u memoriji): `docker compose restart java` ga briše. Posle prijave odmah promenite lozinku.
 
 ## Napomene o razvoju
 
