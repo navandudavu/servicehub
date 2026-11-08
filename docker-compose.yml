@@ -42,6 +42,8 @@ services:
       NALOG_PHOTOS_DIR: /data/photos
       NALOG_FIREBASE_CREDENTIALS: /secrets/firebase-service-account.json
       NALOG_ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@servicehub.local}
+      NALOG_REMINDER_CRON: "${REMINDER_CRON:-0 0 22 * * MON-SAT}"
+      NALOG_STALE_DAYS: ${STALE_DAYS:-2}
       NALOG_CORS_ORIGINS: ${PUBLIC_URL:-http://localhost}
       NALOG_PRICING_LABOR_RATE_PER_HOUR: ${LABOR_RATE:-2500.00}
       NALOG_PRICING_VAT_RATE: ${VAT_RATE:-0.2000}

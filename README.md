@@ -57,6 +57,11 @@ Mogu svi nalozi osim **završenih**.
 
 Lista sa pretragom i prikazom ukinutih delova, novi deo, izmena (naziv, cena, aktivan), korekcija stanja sa napomenom i **istorija stanja** (ko je, kada i zašto promenio: početno stanje, ručna korekcija, utrošeno na nalogu, nalog otkazan / izmenjen / obrisan). Promena cene važi samo za nove naloge. Ukinut deo se ne može dodati na novi nalog. Serviseri pretražuju delove samo kroz formular naloga.
 
+### Podsetnik i zaboravljeni nalozi
+
+- Svako veče u **22:00, ponedeljak–subota** (vreme Beograda) server šalje push svakom aktivnom serviseru koji još ima naloge u statusu *U toku*: „Imate otvorenih naloga: N. Zatvorite nalog samo ako je posao zaista završen.“ Podsetnik samo podseća, ništa ne menja (završen nalog se zaključava). Vreme se menja u `.env` (`REMINDER_CRON`, Spring cron), a gasi se sa `NALOG_REMINDER_ENABLED=false`.
+- Na tabli (samo administrator) kartica **Zaboravljeni nalozi**: nalozi u statusu *Dodeljen* ili *U toku* bez ikakve promene više od `STALE_DAYS` dana (podrazumevano 2). *Čeka delove* i *Nacrt* se ne računaju. API: `GET /api/nalozi/stale` (admin).
+
 ### Pregled, kalendar, izveštaji
 
 Kontrolna tabla i Kalendar čitaju naloge; administrator zakazuje planirani dolazak na stranici naloga (kalendar: najviše 62 dana odjednom). **Izveštaji** (samo administrator): promet završenih naloga po serviseru / mesecu / načinu plaćanja i CSV izvoz (tačka-zarez, decimalni zarez, otvara se u srpskom Excelu).
