@@ -186,18 +186,7 @@ Nova instalacija ovo ne traži.
 - **Prava cena rada i PDV** – sada probno 2500 RSD/h i 20 % u `backend-java/src/main/resources/application.yml`.
 - Android aplikacija (repo `elgor_technician`, grana `main`) ima beleške i brisanje naloga, ali ne i izmenu (ona je samo na vebu). Kompajlira se u Android Studiju.
 - Postavljanje na server: skripte i uputstvo su u `deploy/` (`DEPLOY.md`: Docker + Caddy, HTTPS ili Cloudflare Tunnel, noćni backup baze **i** fotografija, restore, UPS/NUT). Docker build prolazi, ali **pun restore i prelazak sa Node servera još nisu isprobani na pravom serveru**, pa ih treba proveriti ručno.
-- **Uvoz istorije iz starog PHP programa** (oko 50.000 naloga) – vidi sledeći odeljak.
 - Moguće kasnije: istorija opreme po serijskom broju, dodatni izveštaji (prosečna vrednost naloga, najčešće popravljani uređaji), pretraga po datumu i klijentu. Rezervacija delova, particionisanje baze i slično nisu potrebni za ovu veličinu firme.
-
-## Uvoz istorije iz starog PHP programa (planirano)
-
-Stari program je PHP + (verovatno) MySQL/MariaDB na domenu i serveru prethodnog programera; vlasnik firme nema sopstveni pristup. Pre bilo kog uvoza:
-
-1. Utvrditi ko je upisan kao vlasnik domena (WHOIS / RNIDS) i ko plaća hosting, i da li postoji ugovor ili račun koji reguliše vlasništvo nad podacima.
-2. Od vlasnika firme zatražiti običnu rezervnu kopiju: SQL dump baze i fajlove (fotografije, PDF). Prvo samo **strukturu** (bez podataka), pa pun dump.
-3. Rad samo na kopiji. Ništa se ne dira na živom starom sistemu, niti se ulazi na server bez ovlašćenja.
-
-Plan uvoza (kad stignu struktura i uzorak): samo administrator, probni prolaz (pregled i lista problematičnih redova) pa potvrda; paketi u zasebnim transakcijama; izveštaj o neuspelim redovima; ponovno pokretanje ne pravi duplikate. Uvezeni nalozi se vode kao završeni sa originalnim datumima i oznakom „uvezeno“, bez skidanja sa magacina i bez obaveštenja, i ne ulaze u nedeljne brojke na tabli. Klijenti se spajaju po broju telefona. Stara cena se tretira kao ukupan iznos, a PDV se računa unazad u Javi (BigDecimal, HALF_UP). Treba rešiti i kodiranje znakova (Windows-1250 / latin2 / dvostruki UTF-8), ćirilicu i latinicu, tekstualne datume i cene, i redove označene kao obrisani.
 
 ## Gubitak pristupa administratoru
 
