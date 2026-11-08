@@ -63,8 +63,16 @@ public class NalogStatsService {
         List<NalogStats.TechCount> perTech = new ArrayList<>();
         List<NalogStats.TechHours> hours = new ArrayList<>();
         if (actor.isAdmin()) {
-            for (Object[] r : rows(q("SELECT coalesce(n.assigned_to_name, '-') AS name, count(*) AS c FROM nalog n WHERE n.status IN "
-                    + OPEN + " AND :admin GROUP BY 1 ORDER BY c DESC, name", uid))) {
+            // Same idea as the hours card: driven by the team, so technicians with 0 open nalozi are listed too.
+            for (Object[] r : rows(q("SELECT name, c FROM ("
+                    + " SELECT u.name AS name, count(n.id) AS c"
+                    + " FROM app_user u LEFT JOIN nalog n ON n.assigned_to_id = u.id AND n.status IN " + OPEN
+                    + " WHERE u.role = 'technician' AND :admin"
+                    + " GROUP BY u.id, u.name HAVING (u.active OR count(n.id) > 0)"
+                    + " UNION ALL"
+                    + " SELECT coalesce(n.assigned_to_name, '-'), count(*)"
+                    + " FROM nalog n WHERE n.assigned_to_id IS NULL AND n.status IN " + OPEN + " AND :admin GROUP BY 1"
+                    + ") x ORDER BY c DESC, name", uid))) {
                 perTech.add(new NalogStats.TechCount((String) r[0], ((Number) r[1]).longValue()));
             }
             // Driven by the team (app_user), so every technician is listed, also with 0 hours and also when renamed.

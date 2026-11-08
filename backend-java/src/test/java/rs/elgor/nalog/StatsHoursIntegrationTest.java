@@ -31,4 +31,15 @@ class StatsHoursIntegrationTest extends AbstractIntegrationTest {
         NalogStats s = stats.stats(new AuthUser(1, "Admin", "admin"));
         assertEquals(1, s.hoursByTechnician().size());
     }
+
+    @Test
+    void openPerTechnicianListsWholeTeamAndHidesInactiveWithoutWork() {
+        insertUser(1, "Admin", "admin");
+        insertUser(2, "Aktivan", "technician");
+        jdbc.update("INSERT INTO app_user (id, name, role, active) VALUES (3, 'Neaktivan', 'technician', FALSE)");
+        NalogStats s = stats.stats(new AuthUser(1, "Admin", "admin"));
+        assertEquals(1, s.openByTechnician().size());
+        assertEquals("Aktivan", s.openByTechnician().get(0).name());
+        assertEquals(0, s.openByTechnician().get(0).count());
+    }
 }

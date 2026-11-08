@@ -83,6 +83,10 @@ public class UserAdminService {
         AppUser u = load(id);
         if (r.name() != null) {
             u.setName(requireName(r.name()));
+            // nalog keeps a name snapshot of the technician; keep it in step with the team
+            em.flush();
+            em.createNativeQuery("UPDATE nalog SET assigned_to_name = :n WHERE assigned_to_id = :id")
+                    .setParameter("n", u.getName()).setParameter("id", id).executeUpdate();
         }
         if (r.email() != null) {
             String email = requireEmail(r.email());
