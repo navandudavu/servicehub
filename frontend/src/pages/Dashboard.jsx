@@ -36,7 +36,6 @@ export default function Dashboard() {
   const maxStatus = Math.max(...STATUS_ORDER.map((s) => statusMap[s] || 0), 1);
   const perTech = stats.openByTechnician || [];
   const hoursByTech = stats.hoursByTechnician || [];
-  const hasAnyHours = hoursByTech.some((tech) => Number(tech.totalHours) > 0);
   const isAdmin = user.role === 'admin';
 
   return (
@@ -104,10 +103,10 @@ export default function Dashboard() {
         )}
       </div>
 
-      {isAdmin && hoursByTech.length > 0 && (
+      {isAdmin && (
         <div className="card" style={{ padding: 18 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--stone)', marginBottom: 14 }}>{t('dashboard_hoursByTech')}</div>
-          {!hasAnyHours ? (
+          {hoursByTech.length === 0 ? (
             <div style={{ fontSize: 13, color: 'var(--stone)' }}>{t('dashboard_noTechs')}</div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 14 }}>

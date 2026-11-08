@@ -63,14 +63,33 @@ public class NalogStatsService {
         List<NalogStats.TechCount> perTech = new ArrayList<>();
         List<NalogStats.TechHours> hours = new ArrayList<>();
         if (actor.isAdmin()) {
-            for (Object[] r : rows(q("SELECT coalesce(n.assigned_to_name, '-') AS name, count(*) AS c FROM nalog n WHERE n.status IN "
-                    + OPEN + " AND :admin GROUP BY 1 ORDER BY c DESC, name", uid))) {
+            // Same idea as the hours card: driven by the team, so technicians with 0 open nalozi are listed too.
+            for (Object[] r : rows(q("SELECT name, c FROM ("
+                    + " SELECT u.name AS name, count(n.id) AS c"
+                    + " FROM app_user u LEFT JOIN nalog n ON n.assigned_to_id = u.id AND n.status IN " + OPEN
+                    + " WHERE u.role = 'technician' AND :admin"
+                    + " GROUP BY u.id, u.name HAVING (u.active OR count(n.id) > 0)"
+                    + " UNION ALL"
+                    + " SELECT coalesce(n.assigned_to_name, '-'), count(*)"
+                    + " FROM nalog n WHERE n.assigned_to_id IS NULL AND n.status IN " + OPEN + " AND :admin GROUP BY 1"
+                    + ") x ORDER BY c DESC, name", uid))) {
                 perTech.add(new NalogStats.TechCount((String) r[0], ((Number) r[1]).longValue()));
             }
-            for (Object[] r : rows(q("SELECT coalesce(n.assigned_to_name, '-') AS name, "
-                    + "coalesce(sum(n.labor_hours) FILTER (WHERE n.status = 'COMPLETED'), 0) AS total, "
-                    + "coalesce(sum(n.labor_hours) FILTER (WHERE n.status = 'COMPLETED' AND n.completed_at >= :week), 0) AS wk "
-                    + "FROM nalog n WHERE :admin GROUP BY 1 ORDER BY total DESC, name", uid)
+            // Driven by the team (app_user), so every technician is listed, also with 0 hours and also when renamed.
+            // Nalozi whose technician was deleted (assigned_to_id is NULL, only the name is left) and unassigned ones
+            // are added as extra rows, but only if they carry hours.
+            String hoursDone = "sum(n.labor_hours) FILTER (WHERE n.status = 'COMPLETED')";
+            String hoursDoneWeek = "sum(n.labor_hours) FILTER (WHERE n.status = 'COMPLETED' AND n.completed_at >= :week)";
+            for (Object[] r : rows(q("SELECT name, total, wk FROM ("
+                    + " SELECT u.name AS name, coalesce(" + hoursDone + ", 0) AS total, coalesce(" + hoursDoneWeek + ", 0) AS wk"
+                    + " FROM app_user u LEFT JOIN nalog n ON n.assigned_to_id = u.id"
+                    + " WHERE u.role = 'technician' AND (u.active OR n.id IS NOT NULL) AND :admin"
+                    + " GROUP BY u.id, u.name"
+                    + " UNION ALL"
+                    + " SELECT coalesce(n.assigned_to_name, '-'), coalesce(" + hoursDone + ", 0), coalesce(" + hoursDoneWeek + ", 0)"
+                    + " FROM nalog n WHERE n.assigned_to_id IS NULL GROUP BY 1"
+                    + " HAVING coalesce(" + hoursDone + ", 0) > 0"
+                    + ") x ORDER BY total DESC, name", uid)
                     .setParameter("week", weekStart))) {
                 hours.add(new NalogStats.TechHours((String) r[0], dec(r[1]), dec(r[2])));
             }

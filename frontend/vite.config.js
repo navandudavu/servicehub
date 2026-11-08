@@ -6,10 +6,8 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // Java nalog service. These must come BEFORE the generic /api rule.
-      '/api/nalozi': 'http://localhost:8081',
-      '/api/parts': 'http://localhost:8081',
-      '/api': 'http://localhost:4000'
+      // one backend: the Java service
+      '/api': 'http://localhost:8081'
     }
   }
 });

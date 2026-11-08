@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import rs.elgor.nalog.service.LoginBlockedException;
 import rs.elgor.nalog.service.NalogException;
 
 import java.util.LinkedHashMap;
@@ -36,6 +37,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Validation failed");
         pd.setTitle("Validation failed");
         pd.setProperty("errors", errors);
+        pd.setProperty("error", errors.entrySet().stream().findFirst()
+                .map(e -> e.getKey() + ": " + e.getValue()).orElse("Validation failed"));
         return ResponseEntity.badRequest().body(pd);
     }
 
@@ -55,14 +58,27 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     ResponseEntity<ProblemDetail> handleAccessDenied(org.springframework.security.access.AccessDeniedException ex) {
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, "You do not have permission to do this.");
         pd.setTitle("Forbidden");
+        pd.setProperty("error", "You do not have permission to do this.");
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(pd);
     }
 
+    /** "error" repeats the detail: the web app's account screens and the Android login read {"error": "..."}. */
     @ExceptionHandler(NalogException.class)
     ResponseEntity<ProblemDetail> handleBusiness(NalogException ex) {
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(ex.getStatus(), ex.getMessage());
         pd.setTitle(ex.getStatus().getReasonPhrase());
+        pd.setProperty("error", ex.getMessage());
         return ResponseEntity.status(ex.getStatus()).body(pd);
+    }
+
+    @ExceptionHandler(LoginBlockedException.class)
+    ResponseEntity<ProblemDetail> handleLoginBlocked(LoginBlockedException ex) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(ex.getStatus(), ex.getMessage());
+        pd.setTitle(ex.getStatus().getReasonPhrase());
+        pd.setProperty("error", ex.getMessage());
+        return ResponseEntity.status(ex.getStatus())
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getRetryAfterSeconds()))
+                .body(pd);
     }
 
     /** Lost-update race (@Version) -> 409, client should reload and retry. */

@@ -1,6 +1,6 @@
 # ELGOR ServiceHub - production stack.  Start: docker compose up -d --build
 # Everything is configured through .env (copy .env.example, or run deploy/setup.sh).
-# Only Caddy (80/443) is reachable from outside; postgres, node and java live on the internal network.
+# Only Caddy (80/443) is reachable from outside; postgres and java live on the internal network.
 
 # Without a limit Docker keeps every log line forever and slowly fills the disk.
 x-logging: &logging
@@ -27,18 +27,6 @@ services:
       timeout: 5s
       retries: 10
 
-  node:
-    build: ./backend
-    restart: unless-stopped
-    logging: *logging
-    environment:
-      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET missing in .env}
-      # behind Caddy every request would otherwise look like it comes from Caddy's address
-      TRUST_PROXY: uniquelocal
-    volumes:
-      - ${DATA_DIR:-./data}/node:/data
-      - ./secrets:/secrets:ro
-
   java:
     build: ./backend-java
     restart: unless-stopped
@@ -46,20 +34,20 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      node:
-        condition: service_healthy
     environment:
       NALOG_DB_URL: jdbc:postgresql://postgres:5432/elgor_nalog
       NALOG_DB_USER: elgor
       NALOG_DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
-      NODE_BACKEND_URL: http://node:4000
       NALOG_PHOTOS_DIR: /data/photos
+      NALOG_FIREBASE_CREDENTIALS: /secrets/firebase-service-account.json
+      NALOG_ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@servicehub.local}
       NALOG_CORS_ORIGINS: ${PUBLIC_URL:-http://localhost}
       NALOG_PRICING_LABOR_RATE_PER_HOUR: ${LABOR_RATE:-2500.00}
       NALOG_PRICING_VAT_RATE: ${VAT_RATE:-0.2000}
     volumes:
       - ${DATA_DIR:-./data}/photos:/data/photos
+      - ./secrets:/secrets:ro
 
   caddy:
     build: ./frontend
@@ -67,7 +55,6 @@ services:
     logging: *logging
     depends_on:
       - java
-      - node
     ports:
       - "80:80"
       - "443:443"

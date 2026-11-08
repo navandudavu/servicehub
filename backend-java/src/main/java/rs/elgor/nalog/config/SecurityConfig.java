@@ -14,7 +14,11 @@ import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
+import rs.elgor.nalog.repo.AppUserRepository;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -22,37 +26,39 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Set;
 
 /**
- * Auth = the SAME JWT the Node ServiceHub issues at /api/auth/login
- * (HS256, payload {id, role, name}, signed with JWT_SECRET). One login, both backends.
- * This service only VALIDATES tokens; it never issues them.
- *
- * A valid signature is not enough: NodeSessionFilter asks Node whether the account is still
- * active (cached ~30 s), so deactivation/deletion/role changes take effect within a minute.
+ * Auth = a JWT (HS256, payload {id, role, name}, signed with JWT_SECRET) that this service issues at /api/auth/login
+ * (JwtIssuer) and validates on every other request. SessionCheckFilter then confirms the account is still valid
+ * (exists, active, same role, token newer than the last password change), so deactivation takes effect immediately.
  */
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
 
+    /** Reachable without a token. A stale token in the header of a login request must not break the login either. */
+    private static final Set<String> PUBLIC_PATHS = Set.of("/api/auth/login", "/api/health");
+
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationConverter converter,
-            @Value("${nalog.auth.validate-with-node:true}") boolean validateWithNode,
-            @Value("${nalog.auth.node-url:http://localhost:4000}") String nodeUrl,
-            @Value("${nalog.auth.cache-seconds:30}") long cacheSeconds,
-            @Value("${nalog.auth.grace-seconds:600}") long graceSeconds) throws Exception {
+            AppUserRepository users,
+            @Value("${nalog.auth.check-session:true}") boolean checkSession) throws Exception {
+        DefaultBearerTokenResolver defaultResolver = new DefaultBearerTokenResolver();
+        BearerTokenResolver resolver = request -> PUBLIC_PATHS.contains(request.getRequestURI())
+                ? null : defaultResolver.resolve(request);
         http
             .csrf(csrf -> csrf.disable())                       // stateless bearer-token API, no cookies
             .cors(Customizer.withDefaults())
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(a -> a.anyRequest().authenticated())
-            .oauth2ResourceServer(o -> o.jwt(j -> j.jwtAuthenticationConverter(converter)));
-        if (validateWithNode) {
+            .authorizeHttpRequests(a -> a
+                    .requestMatchers(PUBLIC_PATHS.toArray(new String[0])).permitAll()
+                    .anyRequest().authenticated())
+            .oauth2ResourceServer(o -> o.bearerTokenResolver(resolver).jwt(j -> j.jwtAuthenticationConverter(converter)));
+        if (checkSession) {
             // not a @Bean on purpose: a bean filter would also be registered a second time in the servlet container
-            http.addFilterAfter(new NodeSessionFilter(new NodeSessionValidator(nodeUrl,
-                    cacheSeconds * 1000, graceSeconds * 1000, System::currentTimeMillis)),
-                    org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter.class);
+            http.addFilterAfter(new SessionCheckFilter(users), BearerTokenAuthenticationFilter.class);
         }
         return http.build();
     }

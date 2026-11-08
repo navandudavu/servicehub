@@ -9,14 +9,15 @@ Interni alat firme ELGOR (Kruševac) za vođenje servisa bele tehnike i klima ur
 | Deo | Tehnologija | Folder | Port (razvoj) |
 |---|---|---|---|
 | Web aplikacija | React + Vite (JS i TypeScript) | `frontend/` | 5173 |
-| Stari API (poslovi, klijenti, tim, prijava) | Node + Express + SQLite | `backend/` | 4000 |
-| **Servis za radne naloge** | Java 17 + Spring Boot 3 + PostgreSQL | `backend-java/` | 8081 |
+| **Server (jedini backend): prijava, tim, klijenti, nalozi, magacin, obaveštenja** | Java 17 + Spring Boot 3 + PostgreSQL | `backend-java/` | 8081 |
 | Uvoz starih poslova u nove naloge | Node skripta | `tools/` | – |
 | Android aplikacija za servisere | Kotlin + Jetpack Compose | poseban repozitorijum `elgor_technician` | – |
 
-Prijava je **jedna**: Node izdaje JWT token (važi 12 h), a Java servis ga proverava (isti `JWT_SECRET` u oba) i pri tome, uz kratko keširanje (30 s), pita Node da li je nalog još aktivan (vidi **Sesije i tokeni**). Nalozi i novac žive isključivo u Javi/PostgreSQL-u; Node ostaje za prijavu, tim, klijente i stare poslove.
+Postoji **jedan backend** (Java). Prijava, nalozi korisnika, tim, klijenti, nalozi, magacin, fotografije i push obaveštenja žive u njemu i u jednoj PostgreSQL bazi. Stari Node/SQLite server je uklonjen (vidi **Prelazak sa starog Node servera**).
 
-Vite razvojni server prosleđuje `/api/nalozi` i `/api/parts` na Javu (8081), a sve ostalo pod `/api` na Node (4000). U produkciji isto radi reverzni proksi (primer: `Caddyfile` u paketu za postavljanje).
+Prijava izdaje JWT (HS256, `{id, role, name}`, važi 12 h, potpisan sa `JWT_SECRET`); pri svakom zahtevu server proverava da nalog još postoji, aktivan je, ima istu ulogu i da token nije stariji od poslednje promene lozinke (vidi **Sesije i tokeni**).
+
+Vite razvojni server prosleđuje ceo `/api` na Javu (8081). U produkciji isto radi Caddy (`deploy/Caddyfile`).
 
 ## Radni nalog (nalog)
 
@@ -60,7 +61,25 @@ Lista sa pretragom i prikazom ukinutih delova, novi deo, izmena (naziv, cena, ak
 
 Kontrolna tabla i Kalendar čitaju naloge; administrator zakazuje planirani dolazak na stranici naloga (kalendar: najviše 62 dana odjednom). **Izveštaji** (samo administrator): promet završenih naloga po serviseru / mesecu / načinu plaćanja i CSV izvoz (tačka-zarez, decimalni zarez, otvara se u srpskom Excelu).
 
-## Java API (`/api/nalozi`, `/api/parts`)
+## API
+
+**Nalozi korisnika** (iste putanje i oblici kao nekada u Node-u):
+
+| Metoda | Putanja | Ko |
+|---|---|---|
+| POST | `/api/auth/login` | svi (javno; ograničenje pokušaja) |
+| GET | `/api/auth/me` | prijavljen |
+| POST | `/api/auth/token` | prijavljen – FCM token telefona |
+| GET | `/api/health` | javno |
+| GET | `/api/users` | prijavljen |
+| POST, DELETE | `/api/users`, `/api/users/{id}` | admin (ne može se obrisati sebe ni poslednji admin) |
+| PUT | `/api/users/{id}` | admin ili sam korisnik |
+| PATCH | `/api/users/{id}/active`, `/{id}/reset-password` | admin (poslednji aktivan admin se ne može deaktivirati) |
+| PATCH | `/api/users/me/password` | prijavljen – vraća svež token |
+
+**Klijenti** (`/api/customers`): GET lista (`?q=`), GET `/{id}` (sa istorijom naloga; serviser vidi samo svoje), POST i PUT (svi), DELETE (admin; 409 ako klijent ima naloge). Postoji **jedna** tabela klijenata, ista kao u formularu naloga.
+
+**Nalozi i magacin:**
 
 | Metoda | Putanja | Ko |
 |---|---|---|
@@ -74,13 +93,12 @@ Kontrolna tabla i Kalendar čitaju naloge; administrator zakazuje planirani dola
 | GET/POST/DELETE | `/api/nalozi/{id}/photos[/{photoId}/file]` | po pravilu pristupa |
 | GET/POST/DELETE | `/api/nalozi/{id}/notes[/{noteId}]` | čitanje/dodavanje po pravilu pristupa, brisanje admin |
 | GET | `/api/nalozi/customers`, `/technicians`, `/stats`, `/calendar` | po pravilu pristupa / admin |
-| POST | `/api/nalozi/users/sync` | admin – prenosi tim iz Node-a |
 | GET | `/api/nalozi/reports/summary`, `/reports/export.csv` | admin |
 | GET | `/api/parts` | svi čitaju |
 | POST/PUT | `/api/parts`, `/api/parts/{id}`, `/api/parts/{id}/stock` | admin |
 | GET | `/api/parts/{id}/movements` | admin – istorija stanja |
 
-Šema baze: Flyway migracije `V1`–`V6` u `backend-java/src/main/resources/db/migration/`.
+Šema baze: Flyway migracije `V1`–`V7` u `backend-java/src/main/resources/db/migration/`.
 
 ## Pokretanje lokalno (Windows)
 
@@ -93,38 +111,29 @@ CREATE DATABASE nalog OWNER nalog;
 ```
 Tabele pravi Flyway sam pri prvom pokretanju Java servisa.
 
-**2. Node API**
-```bash
-cd backend
-npm install
-cp .env.example .env        # postavite JWT_SECRET (min. 32 znaka, nasumično)
-node src/db/seed.js you@example.com lozinka "Vaše Ime"   # prvi administrator
-node src/server.js
-```
-
-**3. Java servis** (isti `JWT_SECRET` kao u Node `.env`):
+**2. Java servis**
 ```bat
 set NALOG_DB_URL=jdbc:postgresql://localhost:5432/nalog
 set NALOG_DB_USER=nalog
 set NALOG_DB_PASSWORD=dev
-set JWT_SECRET=<ista vrednost kao u backend\.env>
+set JWT_SECRET=<nasumično, najmanje 32 znaka>
 cd backend-java
 mvn spring-boot:run
 ```
-Java servis proverava sesije kod Node-a na `NODE_BACKEND_URL` (podrazumevano `http://localhost:4000`). Node mora raditi, inače Java odgovara 503 (do 10 minuta trpi poslednji dobar odgovor). Samo za posebne slučajeve: `NALOG_VALIDATE_SESSIONS=false` isključuje tu proveru.
+Pri prvom pokretanju, kad niko ne može da se prijavi, servis pravi jednog administratora (`admin@servicehub.local`, ili `NALOG_ADMIN_EMAIL`) i **jednom** ispisuje nasumičnu lozinku u logu (traži se red `FIRST ADMIN`). Prijavite se i odmah je promenite. Push obaveštenja rade samo ako postoji Firebase ključ (`NALOG_FIREBASE_CREDENTIALS`, podrazumevano `/secrets/firebase-service-account.json`); bez njega je push isključen, a sve ostalo radi.
 
-**4. Frontend**
+**3. Frontend**
 ```bash
 cd frontend
 npm install
 npm run dev        # http://localhost:5173
 ```
 
-Za Android uređaj: računar i telefon u istoj mreži, Windows zaštitni zid mora propuštati portove 4000 i 8081; u aplikaciji se unosi adresa Node servera (`http://IP:4000`), a adresa Java servisa se izvodi iz nje (isti računar, port 8081).
+Za Android uređaj: računar i telefon u istoj mreži, Windows zaštitni zid mora propuštati port 8081; u aplikaciji se unosi `http://IP:8081`.
 
 ## Testovi
 
-Java testovi (`backend-java`, `mvn test`): obračun cena, proveravanje sesija prema Node-u i **integracioni testovi na pravoj PostgreSQL bazi** (stanje magacina i vraćanje transakcije, istovremeno uzimanje poslednjeg dela, status mašina, pristup po ulozi, izmena/brisanje, beleške, izveštaji, HTTP statusi).
+Java testovi (`backend-java`, `mvn test`): obračun cena, ograničenje pokušaja prijave, push obaveštenje i **integracioni testovi na pravoj PostgreSQL bazi** (prijava, tokeni, poslednji admin, klijenti, stanje magacina i vraćanje transakcije, istovremeno uzimanje poslednjeg dela, status mašina, pristup po ulozi, izmena/brisanje, beleške, izveštaji, HTTP statusi).
 
 Integracioni testovi traže PostgreSQL na jedan od dva načina:
 - **Lokalna baza (bez Dockera):** napravite posebnu bazu čije ime **završava na `_test`** (testovi brišu sve redove, pa se odbijaju da rade na bilo čemu drugom):
@@ -138,25 +147,36 @@ Integracioni testovi traže PostgreSQL na jedan od dva načina:
 
 ## Uvoz starih poslova
 
-Stari poslovi iz SQLite-a mogu se preneti u nove naloge (samo čitanje stare baze, jedna transakcija, može se ponoviti bez duplikata):
+Stari poslovi iz SQLite-a mogu se preneti u nove naloge (samo čitanje stare baze, jedna transakcija, može se ponoviti bez duplikata; skripta je samostalna i ne traži stari server):
 ```bash
-node tools/migrate-sqlite-to-postgres.js --db backend/data/servicehub.db --out import.sql --labor-rate 2500.00
+node tools/migrate-sqlite-to-postgres.js --db putanja/do/servicehub.db --out import.sql --labor-rate 2500.00
 psql -U nalog -h localhost -d nalog -v ON_ERROR_STOP=1 -f import.sql
 ```
 Poslovi bez klijenta ulaze pod klijenta „Nepoznat klijent“. Stari poslovi dobijaju **probnu** cenu rada i PDV (vidi dole) – proverite ih. `import.sql` sadrži podatke klijenata i ne sme u git. Stare fotografije poslova se ne prenose.
 
+## Prelazak sa starog Node servera
+
+Ako već imate pokrenut sistem sa starim `node` servisom (i naloge korisnika u njemu), lozinke se prenose bez promene:
+
+1. Na **staroj** verziji, dok radi: `bash deploy/migrate-users-from-node.sh` (pravi `users-export.sql`, sadrži hešove lozinki).
+2. `bash deploy/backup.sh` pa prelazak na novu verziju: `git pull && docker compose up -d --build` (Java pravi nove tabele i privremenog administratora).
+3. `bash deploy/import-users.sh` – uvozi naloge sa istim id-jevima (dodeljeni nalozi ostaju kod istih servisera) i briše privremenog administratora. Prijavite se starim emailom i lozinkom, pa obrišite `users-export.sql`.
+4. Stari podaci u `data/node` više ne trebaju; obrišite ih tek kad sve proverite.
+
+Nova instalacija ovo ne traži.
+
 ## Bezbednost
 
-- **Nikad ne komitujte tajne.** `.env` i `firebase-service-account.json` ostaju samo na računaru/serveru (vidi `.gitignore`). Ključ za Firebase se čita iz fajla `backend/firebase-service-account.json`, ne iz `.env`.
+- **Nikad ne komitujte tajne.** `.env` i `firebase-service-account.json` ostaju samo na računaru/serveru (vidi `.gitignore`). Firebase ključ se čita iz fajla (`./secrets/firebase-service-account.json`), ne iz `.env`.
 - Ako je tajni ključ ikada bio u javnom repozitorijumu, **opozovite ga i napravite novi** – brisanje fajla ne uklanja ga iz istorije.
-- `JWT_SECRET`: dug, nasumičan, isti u oba servisa, drugačiji u produkciji nego u razvoju.
-- Prijava je ograničena na 8 neuspešnih pokušaja po IP adresi i email-u u 15 minuta.
+- `JWT_SECRET`: dug, nasumičan, drugačiji u produkciji nego u razvoju. Promena odjavljuje sve.
+- Prijava je ograničena na 8 neuspešnih pokušaja po IP adresi i email-u u 15 minuta (i 40 po IP adresi). Lozinke: najmanje 8 znakova, BCrypt.
 - Otkazani nalog ne prima fotografije.
 
 ### Sesije i tokeni
 
-- Node pri svakom zahtevu čita korisnika iz baze, pa deaktivacija i promena uloge važe odmah. Java pri svakom zahtevu proverava token kod Node-a (`/api/auth/me`, keš 30 s): deaktiviran, obrisan ili degradiran korisnik gubi pristup Javi u roku od oko 30 sekundi, a web aplikacija ga vraća na prijavu.
-- **Promena lozinke** (sopstvena ili reset od administratora) i **deaktivacija** poništavaju sve ranije izdate tokene tog korisnika (`users.tokens_valid_after`). Pri sopstvenoj promeni lozinke server vraća svež token, pa korisnik ostaje prijavljen na tom uređaju, a svi ostali se odjavljuju. Ponovna aktivacija ne oživljava stare tokene.
+- Server pri svakom zahtevu čita korisnika iz baze: deaktivacija, brisanje i promena uloge važe **odmah** (sledeći zahtev dobija 401, a web aplikacija vraća na prijavu).
+- **Promena lozinke** (sopstvena ili reset od administratora) i **deaktivacija** poništavaju sve ranije izdate tokene tog korisnika (`app_user.tokens_valid_after`). Pri sopstvenoj promeni lozinke server vraća svež token, pa korisnik ostaje prijavljen na tom uređaju, a svi ostali se odjavljuju. Ponovna aktivacija ne oživljava stare tokene.
 - Android aplikacija posle poništavanja tokena prikazuje „Sesija je istekla“ i treba se ponovo prijaviti (odjava i prijava).
 - Android izdanje za produkciju: bez nešifrovanog HTTP-a, prava adresa servera umesto razvojne IP adrese.
 
@@ -166,7 +186,6 @@ Poslovi bez klijenta ulaze pod klijenta „Nepoznat klijent“. Stari poslovi do
 - **Prava cena rada i PDV** – sada probno 2500 RSD/h i 20 % u `backend-java/src/main/resources/application.yml`.
 - Android aplikacija (grana `claude/android-catchup` u repou `elgor_technician`) ima beleške i brisanje naloga, ali ne i izmenu (ona je samo na vebu); još nije kompajlirana.
 - Postavljanje na server: skripte i uputstvo su u `deploy/` (`DEPLOY.md`: Docker + Caddy, HTTPS ili Cloudflare Tunnel, noćni backup baze **i** fotografija, restore, UPS/NUT). **Još nije isprobano na pravom Docker-u**, pa prvo pokretanje i restore treba proveriti ručno.
-- Odluka kada se Node API potpuno gasi (do tada ostaje za prijavu, tim i klijente).
 
 ## Napomene o razvoju
 
