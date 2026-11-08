@@ -59,7 +59,7 @@ Lista sa pretragom i prikazom ukinutih delova, novi deo, izmena (naziv, cena, ak
 
 ### Podsetnik i zaboravljeni nalozi
 
-- Svako veče u **22:00, ponedeljak–subota** (vreme Beograda) server šalje push svakom aktivnom serviseru koji još ima naloge u statusu *U toku*: „Imate otvorenih naloga: N. Zatvorite nalog samo ako je posao zaista završen.“ Podsetnik samo podseća, ništa ne menja (završen nalog se zaključava). Vreme se menja u `.env` (`REMINDER_CRON`, Spring cron), a gasi se sa `NALOG_REMINDER_ENABLED=false`.
+- Svako veče u **22:00, ponedeljak–subota** (vreme Beograda) server šalje push svakom aktivnom serviseru koji još ima naloge u statusu *U toku*: „Imate otvorenih naloga: N. Zatvorite nalog samo ako je posao zaista završen.“ Podsetnik samo podseća, ništa ne menja (završen nalog se zaključava). Vreme se menja u `.env` (`REMINDER_CRON`, Spring cron), a gasi se sa `REMINDER_ENABLED=false`.
 - Na tabli (samo administrator) kartica **Zaboravljeni nalozi**: nalozi u statusu *Dodeljen* ili *U toku* bez ikakve promene više od `STALE_DAYS` dana (podrazumevano 2). *Čeka delove* i *Nacrt* se ne računaju. API: `GET /api/nalozi/stale` (admin).
 
 ### Pregled, kalendar, izveštaji
