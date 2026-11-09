@@ -141,6 +141,14 @@ Test: izvucite UPS iz struje na minut i gledajte `upsc ups ups.status` (`OB` = n
 
 ## 6. Odrzavanje
 
+### Stanje sistema (jedan ekran)
+
+```bash
+bash deploy/status.sh            # jednom: kontejneri, backend, spolja dostupno, baza, backup, disk, greske, UPS
+bash deploy/status.sh --watch    # zivi prikaz, osvezava se na 10 s
+```
+Kod izlaza: 0 sve OK, 1 upozorenja, 2 greske. Ovo vidi samo ono sto radi **na samom serveru**: ako se racunar ugasi, ova skripta ne moze nista da javi. Zato dodatno podesite **spoljni** monitor (npr. besplatan UptimeRobot) koji svakih 5 minuta otvara `https://VASA-ADRESA/api/health` i salje SMS/email kad stranica ne odgovara.
+
 ```bash
 docker compose ps
 docker compose logs -f java          # ili caddy / postgres
