@@ -338,6 +338,21 @@ export interface NalogStats {
   hoursByTechnician: Array<{ name: string; totalHours: string; hoursThisWeek: string }>;
 }
 
+/** Mirrors StaleNalogs.java (GET /api/nalozi/stale, admin only). */
+export interface StaleNalogs {
+  days: number;
+  total: number;
+  items: Array<{
+    id: number;
+    nalogNumber: string;
+    status: NalogStatus;
+    customerName: string;
+    technicianName: string | null;
+    lastUpdate: string;
+    idleDays: number;
+  }>;
+}
+
 /** Mirrors CalendarEntry.java (GET /api/nalozi/calendar). */
 export interface CalendarEntry {
   id: number;

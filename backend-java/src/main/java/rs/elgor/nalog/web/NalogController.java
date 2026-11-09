@@ -12,6 +12,7 @@ import rs.elgor.nalog.service.NalogDeleteService;
 import rs.elgor.nalog.service.NalogException;
 import rs.elgor.nalog.service.NalogService;
 import rs.elgor.nalog.service.NalogStatsService;
+import rs.elgor.nalog.service.StaleNalogService;
 import rs.elgor.nalog.service.UserDirectoryService;
 import org.springframework.security.access.prepost.PreAuthorize;
 
@@ -26,13 +27,15 @@ public class NalogController {
     private final UserDirectoryService directory;
     private final NalogStatsService statsService;
     private final NalogDeleteService deleteService;
+    private final StaleNalogService staleService;
 
     public NalogController(NalogService nalogService, UserDirectoryService directory, NalogStatsService statsService,
-                           NalogDeleteService deleteService) {
+                           NalogDeleteService deleteService, StaleNalogService staleService) {
         this.nalogService = nalogService;
         this.directory = directory;
         this.statsService = statsService;
         this.deleteService = deleteService;
+        this.staleService = staleService;
     }
 
     /**
@@ -119,6 +122,13 @@ public class NalogController {
     @GetMapping("/stats")
     public NalogStats stats(@AuthenticationPrincipal Jwt jwt) {
         return statsService.stats(directory.resolve(jwt));
+    }
+
+    /** Admin only. Open nalozi nobody has touched for a while (the "forgotten" card on the dashboard). */
+    @GetMapping("/stale")
+    @PreAuthorize("hasRole('ADMIN')")
+    public StaleNalogs stale() {
+        return staleService.list();
     }
 
     /** Planned visits in [from, to), ISO-8601 instants. */
