@@ -38,7 +38,7 @@ public class PartService {
     public PartResponse create(CreatePartRequest req, AuthUser actor) {
         String sku = req.sku().trim();
         if (partRepository.existsBySku(sku)) {
-            throw NalogException.conflict("SKU " + sku + " already exists");
+            throw NalogException.conflict("Šifra " + sku + " već postoji");
         }
         Part p = new Part();
         p.setSku(sku);
