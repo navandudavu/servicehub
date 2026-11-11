@@ -6,6 +6,8 @@ Jedan namenski racunar, UPS, Docker. Spolja je dostupan samo Caddy (80/443); Pos
 
 ## 1. Racunar
 
+Hardver, Ubuntu, RAID i učvršćivanje (SSH, firewall, zakrpe): vidi `deploy/SERVER.md`.
+
 - Ubuntu Server LTS, SSD, instaliran Docker Engine (https://docs.docker.com/engine/install/ubuntu/), korisnik u grupi `docker`.
 - BIOS: **Restore on AC Power Loss = Power On**, da se racunar sam podigne posle nestanka struje.
 - Fiksna adresa u lokalnoj mrezi (rezervacija na ruteru). Windows + Docker Desktop za server ne preporucujem.
