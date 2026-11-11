@@ -57,10 +57,14 @@ Mogu svi nalozi osim **završenih**.
 
 Lista sa pretragom i prikazom ukinutih delova, novi deo, izmena (naziv, cena, aktivan), korekcija stanja sa napomenom i **istorija stanja** (ko je, kada i zašto promenio: početno stanje, ručna korekcija, utrošeno na nalogu, nalog otkazan / izmenjen / obrisan). Promena cene važi samo za nove naloge. Ukinut deo se ne može dodati na novi nalog. Serviseri pretražuju delove samo kroz formular naloga.
 
-### Podsetnik i zaboravljeni nalozi
+### Podsetnik za status
 
-- Svako veče u **22:00, ponedeljak–subota** (vreme Beograda) server šalje push svakom aktivnom serviseru koji još ima naloge u statusu *U toku*: „Imate otvorenih naloga: N. Zatvorite nalog samo ako je posao zaista završen.“ Podsetnik samo podseća, ništa ne menja (završen nalog se zaključava). Vreme se menja u `.env` (`REMINDER_CRON`, Spring cron), a gasi se sa `REMINDER_ENABLED=false`.
-- Na tabli (samo administrator) kartica **Zaboravljeni nalozi**: nalozi u statusu *Dodeljen* ili *U toku* bez ikakve promene više od `STALE_DAYS` dana (podrazumevano 2). *Čeka delove* i *Nacrt* se ne računaju. API: `GET /api/nalozi/stale` (admin).
+- **Svakog punog sata od 08:00 do 19:00, ponedeljak–subota** (vreme Beograda) server šalje push svakom aktivnom serviseru koji ima otvorene naloge (*Dodeljen*, *U toku*, *Čeka delove*): „Imate otvorenih naloga: N. Izaberite trenutni status svakog naloga.“ Podsetnik samo podseća, ništa ne menja. Vreme se menja u `.env` (`REMINDER_CRON`, Spring cron; ako je `.env` ranije kopiran sa starom vrednošću `0 0 22 * * MON-SAT`, promenite i tamo), a gasi se sa `REMINDER_ENABLED=false`.
+- Automatskog zatvaranja nema, a kartica „Zaboravljeni nalozi“ je uklonjena.
+
+### Zatvaranje naloga
+
+Nalog se ne može zatvoriti (*Završen*) bez bar jedne fotografije i bez opisa **izvršenih radova**; server odbija zatvaranje sa porukom. Fotografije imaju kategorije *Pre*, *Posle*, *Nalepnica / SN*, *Radni nalog* i *Ostalo*. Naloge pravi samo administrator (serviseri rade nalog koji im je dodeljen). Delove na zatvorenom nalogu može da menja samo administrator.
 
 ### Pregled, kalendar, izveštaji
 

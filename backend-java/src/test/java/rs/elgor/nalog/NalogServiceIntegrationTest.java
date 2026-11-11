@@ -106,13 +106,12 @@ class NalogServiceIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void technicianCanOnlyAssignToSelf() {
-        NalogException e = assertThrows(NalogException.class,
-                () -> service.create(req(List.of(), null, 3L), null, tech2));
-        assertEquals(403, e.getStatus().value());
-
-        NalogResponse mine = service.create(req(List.of()), null, tech2);
-        assertEquals(2L, mine.assignedToId());
+    void technicianCannotCreateANalogAtAll() {
+        assertEquals(403, assertThrows(NalogException.class,
+                () -> service.create(req(List.of(), null, 3L), null, tech2)).getStatus().value());
+        assertEquals(403, assertThrows(NalogException.class,
+                () -> service.create(req(List.of()), null, tech2)).getStatus().value());
+        assertEquals(0, count("nalog"));
     }
 
     @Test
@@ -154,11 +153,29 @@ class NalogServiceIntegrationTest extends AbstractIntegrationTest {
         service.changeStatus(n.id(), NalogStatus.IN_PROGRESS, admin);
         service.changeStatus(n.id(), NalogStatus.AWAITING_PARTS, admin);
         service.changeStatus(n.id(), NalogStatus.IN_PROGRESS, admin);
+        readyToClose(n.id());
         NalogResponse done = service.changeStatus(n.id(), NalogStatus.COMPLETED, admin);
 
         assertEquals(NalogStatus.COMPLETED, done.status());
         assertNotNull(done.completedAt());
         assertEquals(6, service.history(n.id(), admin).size());
+    }
+
+    @Test
+    void closingNeedsAPhotoAndAWorkDescription() {
+        NalogResponse n = service.create(req(List.of()), null, admin);
+        service.changeStatus(n.id(), NalogStatus.DISPATCHED, admin);
+        service.changeStatus(n.id(), NalogStatus.IN_PROGRESS, admin);
+
+        assertEquals(400, assertThrows(NalogException.class,
+                () -> service.changeStatus(n.id(), NalogStatus.COMPLETED, admin)).getStatus().value());
+
+        jdbc.update("UPDATE nalog SET work_done = 'Zamenjen deo' WHERE id = ?", n.id());       // description, still no photo
+        assertEquals(400, assertThrows(NalogException.class,
+                () -> service.changeStatus(n.id(), NalogStatus.COMPLETED, admin)).getStatus().value());
+
+        readyToClose(n.id());
+        assertEquals(NalogStatus.COMPLETED, service.changeStatus(n.id(), NalogStatus.COMPLETED, admin).status());
     }
 
     @Test
@@ -175,7 +192,7 @@ class NalogServiceIntegrationTest extends AbstractIntegrationTest {
     @Test
     void cancelRestoresStockOnceAndOnlyAdminMayCancel() {
         long p = insertPart("A-1", "100.00", 10);
-        NalogResponse n = service.create(req(List.of(new PartLineInput(p, 4))), null, tech2);
+        NalogResponse n = service.create(req(List.of(new PartLineInput(p, 4)), null, 2L), null, admin);
         assertEquals(6, stockOf(p));
 
         NalogException e = assertThrows(NalogException.class,

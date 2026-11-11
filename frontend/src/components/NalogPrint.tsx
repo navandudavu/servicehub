@@ -92,6 +92,13 @@ export function NalogPrint({ nalog, company }: { nalog: NalogResponse; company: 
         <div style={{ whiteSpace: 'pre-wrap' }}>{nalog.diagnosis}</div>
       </div>
 
+      {nalog.workDone && (
+        <div className="box" style={{ marginBottom: 14 }}>
+          <h2>Izvršeni radovi</h2>
+          <div style={{ whiteSpace: 'pre-wrap' }}>{nalog.workDone}</div>
+        </div>
+      )}
+
       <table>
         <thead>
           <tr><th>Opis</th><th className="num">Kol.</th><th className="num">Cena</th><th className="num">Iznos (RSD)</th></tr>

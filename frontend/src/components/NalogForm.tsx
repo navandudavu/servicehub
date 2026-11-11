@@ -73,6 +73,7 @@ export function NalogForm({ isAdmin, onCreated, editing, onSaved }: Props) {
   const [model, setModel] = useState(editing?.appliance.model ?? '');
   const [serialNumber, setSerialNumber] = useState(editing?.appliance.serialNumber ?? '');
   const [diagnosis, setDiagnosis] = useState(editing?.diagnosis ?? '');
+  const [workDone, setWorkDone] = useState(editing?.workDone ?? '');
 
   // --- parts & labor ---
   const [partQuery, setPartQuery] = useState('');
@@ -195,6 +196,7 @@ export function NalogForm({ isAdmin, onCreated, editing, onSaved }: Props) {
         },
         appliance: { type: applianceType, brand, model: model || null, serialNumber: serialNumber || null },
         diagnosis,
+        workDone: workDone.trim() || null,
         partLines: selected.map((s) => ({ partId: s.part.id, quantity: s.quantity })),
         laborHours,
         paymentType,
@@ -341,6 +343,11 @@ export function NalogForm({ isAdmin, onCreated, editing, onSaved }: Props) {
         <Field label={t('nalogForm_diagnosis')} error={fe('diagnosis')}>
           <textarea className="input" rows={4} value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} required />
         </Field>
+        {editing && (
+          <Field label={t('nalogForm_workDone')} error={fe('workDone')}>
+            <textarea className="input" rows={4} value={workDone} onChange={(e) => setWorkDone(e.target.value)} />
+          </Field>
+        )}
       </Section>
 
       {/* ---------- parts & labor ---------- */}

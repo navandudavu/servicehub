@@ -64,7 +64,7 @@ class NalogEditDeleteIntegrationTest extends AbstractIntegrationTest {
     private UpdateNalogRequest edit(NalogResponse n, List<PartLineInput> parts, String hours) {
         return new UpdateNalogRequest(n.customer().id(), null,
                 new ApplianceInput(ApplianceType.AIR_CONDITIONER, "Bosch", null, null),
-                "Novi opis", parts, new BigDecimal(hours), PaymentType.CASH, n.version());
+                "Novi opis", null, parts, new BigDecimal(hours), PaymentType.CASH, n.version());
     }
 
     private static NalogResponse.PartLineView line(NalogResponse n, long partId) {
@@ -135,7 +135,7 @@ class NalogEditDeleteIntegrationTest extends AbstractIntegrationTest {
         NalogResponse n = create(List.of(new PartLineInput(a, 2)), null);          // stock A = 1
         UpdateNalogRequest tooMuch = new UpdateNalogRequest(null, someone(),
                 new ApplianceInput(ApplianceType.AIR_CONDITIONER, "Bosch", null, null),
-                "Novi opis", List.of(new PartLineInput(a, 5)), new BigDecimal("1.00"), PaymentType.CASH, n.version());
+                "Novi opis", null, List.of(new PartLineInput(a, 5)), new BigDecimal("1.00"), PaymentType.CASH, n.version());
 
         NalogException ex = assertThrows(NalogException.class, () -> service.update(n.id(), tooMuch, admin));
 
@@ -162,12 +162,15 @@ class NalogEditDeleteIntegrationTest extends AbstractIntegrationTest {
         assertEquals(409, assertThrows(NalogException.class,
                 () -> service.update(cancelled.id(), edit(service.get(cancelled.id(), admin), List.of(), "1.00"), admin)).getStatus().value());
 
-        NalogResponse done = create(List.of(), null);
+        NalogResponse done = create(List.of(), 2L);
         service.changeStatus(done.id(), NalogStatus.DISPATCHED, admin);
         service.changeStatus(done.id(), NalogStatus.IN_PROGRESS, admin);
+        readyToClose(done.id());
         service.changeStatus(done.id(), NalogStatus.COMPLETED, admin);
+        // a closed nalog: technicians cannot touch it, an admin still can (parts on a closed nalog are admin-only)
         assertEquals(409, assertThrows(NalogException.class,
-                () -> service.update(done.id(), edit(service.get(done.id(), admin), List.of(), "1.00"), admin)).getStatus().value());
+                () -> service.update(done.id(), edit(service.get(done.id(), admin), List.of(), "1.00"), tech2)).getStatus().value());
+        assertEquals("Novi opis", service.update(done.id(), edit(service.get(done.id(), admin), List.of(), "1.00"), admin).diagnosis());
     }
 
     @Test
@@ -183,7 +186,7 @@ class NalogEditDeleteIntegrationTest extends AbstractIntegrationTest {
         UpdateNalogRequest req = new UpdateNalogRequest(null,
                 new CustomerInput("Marko Marković", "Vidovdanska 5", "Kruševac", "063 555 111", null, null),
                 new ApplianceInput(ApplianceType.AIR_CONDITIONER, "Bosch", null, null),
-                "Novi opis", List.of(), new BigDecimal("1.00"), PaymentType.CASH, n.version());
+                "Novi opis", null, List.of(), new BigDecimal("1.00"), PaymentType.CASH, n.version());
         NalogResponse e = service.update(n.id(), req, admin);
 
         assertNotEquals(n.customer().id(), e.customer().id());
@@ -250,6 +253,7 @@ class NalogEditDeleteIntegrationTest extends AbstractIntegrationTest {
         NalogResponse done = create(List.of(), 2L);
         service.changeStatus(done.id(), NalogStatus.DISPATCHED, admin);
         service.changeStatus(done.id(), NalogStatus.IN_PROGRESS, admin);
+        readyToClose(done.id());
         service.changeStatus(done.id(), NalogStatus.COMPLETED, admin);
         assertEquals(409, assertThrows(NalogException.class, () -> deleteService.delete(done.id(), admin)).getStatus().value());
 

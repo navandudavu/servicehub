@@ -184,6 +184,12 @@ export default function NalogDetail() {
             <div style={{ whiteSpace: 'pre-wrap' }}>{nalog.diagnosis}</div>
           </Card>
 
+          {nalog.workDone && (
+            <Card title={t('nalogDetail_workDone')}>
+              <div style={{ whiteSpace: 'pre-wrap' }}>{nalog.workDone}</div>
+            </Card>
+          )}
+
           <NalogPhotos nalogId={nalog.id} canUpload={nalog.status !== 'CANCELLED'} isAdmin={isAdmin} userId={user?.id ?? null} />
 
           <NalogNotes nalogId={nalog.id} isAdmin={isAdmin} />

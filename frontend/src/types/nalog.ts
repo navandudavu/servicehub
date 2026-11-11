@@ -115,6 +115,7 @@ export interface NalogResponse {
   customer: CustomerView;
   appliance: ApplianceView;
   diagnosis: string;
+  workDone: string | null;
   laborHours: DecimalString;
   laborRate: DecimalString;
   laborTotal: DecimalString;
@@ -277,6 +278,7 @@ export interface UpdateNalogRequest {
   newCustomer?: CustomerInput | null;
   appliance: ApplianceInput;
   diagnosis: string;
+  workDone?: string | null;
   partLines: PartLineInput[];
   laborHours: DecimalString;
   paymentType: PaymentType;
@@ -297,7 +299,7 @@ export interface TechnicianView {
   name: string;
 }
 
-export type PhotoCategory = 'before' | 'after' | 'label' | 'other';
+export type PhotoCategory = 'before' | 'after' | 'label' | 'workorder' | 'other';
 
 /** Mirrors PhotoView.java. Metadata only; the image bytes are fetched with the auth header (see nalogApi.fetchPhotoBlob). */
 export interface PhotoView {
@@ -336,21 +338,6 @@ export interface NalogStats {
   byStatus: Array<{ status: NalogStatus; count: number }>;
   openByTechnician: Array<{ name: string; count: number }>;
   hoursByTechnician: Array<{ name: string; totalHours: string; hoursThisWeek: string }>;
-}
-
-/** Mirrors StaleNalogs.java (GET /api/nalozi/stale, admin only). */
-export interface StaleNalogs {
-  days: number;
-  total: number;
-  items: Array<{
-    id: number;
-    nalogNumber: string;
-    status: NalogStatus;
-    customerName: string;
-    technicianName: string | null;
-    lastUpdate: string;
-    idleDays: number;
-  }>;
 }
 
 /** Mirrors CalendarEntry.java (GET /api/nalozi/calendar). */

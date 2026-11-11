@@ -32,6 +32,7 @@ public class NalogService {
     private final AppUserRepository userRepository;
     private final PricingCalculator pricing;
     private final NalogPushNotifier pushNotifier;
+    private final NalogPhotoRepository photoRepository;
 
     @PersistenceContext
     private EntityManager em;
@@ -43,7 +44,8 @@ public class NalogService {
                         StockMovementRepository movementRepository,
                         AppUserRepository userRepository,
                         PricingCalculator pricing,
-                        NalogPushNotifier pushNotifier) {
+                        NalogPushNotifier pushNotifier,
+                        NalogPhotoRepository photoRepository) {
         this.nalogRepository = nalogRepository;
         this.customerRepository = customerRepository;
         this.partRepository = partRepository;
@@ -52,6 +54,7 @@ public class NalogService {
         this.userRepository = userRepository;
         this.pricing = pricing;
         this.pushNotifier = pushNotifier;
+        this.photoRepository = photoRepository;
     }
 
     // ========================================================================
@@ -69,6 +72,11 @@ public class NalogService {
      */
     @Transactional(rollbackFor = Exception.class)
     public NalogResponse create(CreateNalogRequest req, String idempotencyKey, AuthUser actor) {
+
+        // 0. Only admins make nalozi; technicians work the ones they are given.
+        if (actor != null && !actor.isAdmin()) {
+            throw NalogException.forbidden("Samo administrator može da napravi radni nalog");
+        }
 
         // 1. Idempotent replay: same key => return the original, create nothing.
         if (idempotencyKey != null) {
@@ -196,6 +204,12 @@ public class NalogService {
             restoreStock(nalog, actor, StockMovement.Reason.NALOG_CANCEL);
         }
         if (target == NalogStatus.COMPLETED) {
+            if (photoRepository.countByNalogId(nalog.getId()) == 0) {
+                throw NalogException.invalid("Nalog se ne može zatvoriti bez fotografije");
+            }
+            if (nalog.getWorkDone() == null || nalog.getWorkDone().isBlank()) {
+                throw NalogException.invalid("Nalog se ne može zatvoriti bez opisa izvršenih radova");
+            }
             nalog.setCompletedAt(Instant.now());
         }
         nalog.setStatus(target);
@@ -295,7 +309,8 @@ public class NalogService {
         Nalog nalog = nalogRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> NalogException.notFound("Nalog " + id + " not found"));
         requireAccess(nalog, actor);
-        if (!EDITABLE.contains(nalog.getStatus())) {
+        boolean closedButAdmin = nalog.getStatus() == NalogStatus.COMPLETED && actor != null && actor.isAdmin();
+        if (!EDITABLE.contains(nalog.getStatus()) && !closedButAdmin) {
             throw NalogException.conflict("A " + nalog.getStatus() + " nalog cannot be edited");
         }
         if (!Objects.equals(nalog.getVersion(), req.expectedVersion())) {
@@ -376,6 +391,7 @@ public class NalogService {
         nalog.setApplianceModel(blankToNull(req.appliance().model()));
         nalog.setSerialNumber(blankToNull(req.appliance().serialNumber()));
         nalog.setDiagnosis(req.diagnosis().trim());
+        nalog.setWorkDone(blankToNull(req.workDone()));
         nalog.setLaborHours(req.laborHours());
         nalog.setLaborTotal(t.laborTotal());
         nalog.setPartsTotal(t.partsTotal());

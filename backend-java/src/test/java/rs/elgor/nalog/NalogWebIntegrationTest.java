@@ -89,6 +89,9 @@ class NalogWebIntegrationTest extends AbstractIntegrationTest {
                     .andReturn().getResponse().getContentAsString();
             long id = ((Number) com.jayway.jsonpath.JsonPath.read(body, "$.id")).longValue();
             for (String s : new String[]{"DISPATCHED", "IN_PROGRESS", "COMPLETED"}) {
+                if (s.equals("COMPLETED")) {
+                    readyToClose(id);
+                }
                 mvc.perform(patch("/api/nalozi/" + id + "/status").with(admin())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"" + s + "\"}"))
                         .andExpect(status().isOk());

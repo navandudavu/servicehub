@@ -126,7 +126,7 @@ export default function NalozList() {
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>{t('nalog_title')}</h1>
           {data && <div style={{ color: 'var(--stone)', fontSize: 13, marginTop: 2 }}>{t('nalog_count', data.totalItems)}</div>}
         </div>
-        <Link to="/nalozi/new" className="btn" style={{ textDecoration: 'none' }}>{t('nalog_new')}</Link>
+        {isAdmin && <Link to="/nalozi/new" className="btn" style={{ textDecoration: 'none' }}>{t('nalog_new')}</Link>}
       </div>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
