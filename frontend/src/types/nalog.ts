@@ -383,3 +383,10 @@ export interface ReportSummary {
   byMonth: ReportRow[];
   byPayment: ReportRow[];
 }
+
+/** Mirrors BulkDtos.java. */
+export interface BulkResult { processed: number }
+export interface BulkCustomerDelete {
+  deleted: number;
+  skipped: Array<{ id: number; fullName: string; reason: 'HAS_NALOZI' | 'NOT_FOUND' }>;
+}

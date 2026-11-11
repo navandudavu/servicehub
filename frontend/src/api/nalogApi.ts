@@ -2,7 +2,7 @@ import axios, { AxiosError, AxiosInstance, Method } from 'axios';
 import type {
   ApiProblem, CreateNalogRequest, CustomerDetail, CustomerInput, CustomerView, CreatePartRequest, NalogListQuery, NalogPreview, NalogResponse,
   NalogStatus, NalogSummary, PageResponse, PartResponse, PreviewRequest, StatusHistoryView,
-  StockAdjustRequest, StockMovementView, NoteView, CreateNoteRequest, UpdateNalogRequest, TechnicianView, UpdatePartRequest, PhotoView, PhotoCategory, NalogStats, StaleNalogs, CalendarEntry, ReportSummary,
+  StockAdjustRequest, StockMovementView, NoteView, CreateNoteRequest, UpdateNalogRequest, TechnicianView, UpdatePartRequest, PhotoView, PhotoCategory, NalogStats, StaleNalogs, CalendarEntry, ReportSummary, BulkResult, BulkCustomerDelete,
 } from '../types/nalog';
 
 /** Normalised error: the UI never has to look inside an AxiosError. */
@@ -132,6 +132,17 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized }:
   const deleteCustomer = (id: number) =>
     send<{ ok: boolean }>('DELETE', `/api/customers/${id}`, { safeToRetry: false });
 
+  // ---- bulk actions from the list screens (admin only on the server; max 200 ids) ----
+  // Deleting is never retried: a repeat would answer "no longer exists" for rows the first try already removed.
+  const bulkDeleteNalozi = (ids: number[]) =>
+    send<BulkResult>('POST', '/api/nalozi/bulk-delete', { data: { ids }, safeToRetry: false });
+  const bulkAssignNalozi = (ids: number[], technicianId: number | null) =>
+    send<BulkResult>('POST', '/api/nalozi/bulk-assign', { data: { ids, technicianId }, safeToRetry: true });
+  const bulkSetPartsActive = (ids: number[], active: boolean) =>
+    send<BulkResult>('POST', '/api/parts/bulk-active', { data: { ids, active }, safeToRetry: true });
+  const bulkDeleteCustomers = (ids: number[]) =>
+    send<BulkCustomerDelete>('POST', '/api/customers/bulk-delete', { data: { ids }, safeToRetry: false });
+
   // ---- dashboard / calendar / schedule ----
   const getStats = (signal?: AbortSignal) =>
     send<NalogStats>('GET', '/api/nalozi/stats', { safeToRetry: true, signal });
@@ -202,7 +213,7 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized }:
 
   return {
     newIdempotencyKey, submitNalog, updateNalog, deleteNalog, previewNalog, listNalozi, getNalog, getNalogHistory, changeStatus,
-    searchCustomers, listCustomers, getCustomer, createCustomer, updateCustomer, deleteCustomer, assignNalog, listTechnicians, getStats, getStale, getCalendar, setSchedule, getReportSummary, fetchReportCsv, listPhotos, uploadPhoto, deletePhoto, fetchPhotoBlob, listNotes, addNote, deleteNote, searchParts, listStockMovements, createPart, updatePart, adjustStock,
+    searchCustomers, listCustomers, getCustomer, createCustomer, updateCustomer, deleteCustomer, bulkDeleteNalozi, bulkAssignNalozi, bulkSetPartsActive, bulkDeleteCustomers, assignNalog, listTechnicians, getStats, getStale, getCalendar, setSchedule, getReportSummary, fetchReportCsv, listPhotos, uploadPhoto, deletePhoto, fetchPhotoBlob, listNotes, addNote, deleteNote, searchParts, listStockMovements, createPart, updatePart, adjustStock,
   };
 }
 

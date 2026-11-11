@@ -418,6 +418,33 @@ public class NalogService {
         return NalogResponse.from(assigned);
     }
 
+    /**
+     * Assign (or un-assign, technicianId null) a selection, all or nothing: a COMPLETED / CANCELLED nalog in the
+     * selection refuses the whole request. One transaction; each nalog goes through the single assign path.
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public int assignMany(List<Long> ids, Long technicianId, AuthUser actor) {
+        if (actor == null || !actor.isAdmin()) {
+            throw NalogException.forbidden("Only an admin can assign a nalog");
+        }
+        List<Long> sorted = ids.stream().distinct().sorted().toList();
+        List<Nalog> found = nalogRepository.findAllById(sorted);
+        if (found.size() != sorted.size()) {
+            throw NalogException.notFound("Neki izabrani nalozi više ne postoje. Ništa nije promenjeno.");
+        }
+        List<String> closed = found.stream()
+                .filter(n -> n.getStatus() == NalogStatus.COMPLETED || n.getStatus() == NalogStatus.CANCELLED)
+                .map(Nalog::getNalogNumber).sorted().toList();
+        if (!closed.isEmpty()) {
+            throw NalogException.conflict("Završeni ili otkazani nalozi se ne mogu dodeliti: " + String.join(", ", closed)
+                    + ". Ništa nije promenjeno.");
+        }
+        for (Long id : sorted) {
+            assign(id, technicianId, actor);
+        }
+        return sorted.size();
+    }
+
     /** Customer autocomplete (top 10). Reusing a customer avoids duplicate records per nalog. */
     @Transactional(readOnly = true)
     public List<NalogResponse.CustomerView> searchCustomers(String q) {

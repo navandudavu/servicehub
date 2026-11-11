@@ -6,6 +6,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+import rs.elgor.nalog.dto.BulkDtos;
 import rs.elgor.nalog.dto.CustomerDtos.*;
 import rs.elgor.nalog.dto.NalogResponse.CustomerView;
 import rs.elgor.nalog.service.CustomerService;
@@ -46,6 +47,12 @@ public class CustomerController {
     @PutMapping("/{id}")
     public CustomerView update(@PathVariable Long id, @Valid @RequestBody CustomerRequest request) {
         return customers.update(id, request);
+    }
+
+    /** Admin only (checked in the service). Customers with nalozi are skipped and listed in the answer. */
+    @PostMapping("/bulk-delete")
+    public BulkDtos.BulkCustomerDelete bulkDelete(@Valid @RequestBody BulkDtos.BulkIds request, @AuthenticationPrincipal Jwt jwt) {
+        return customers.deleteMany(request.ids(), directory.resolve(jwt));
     }
 
     /** Admin only (checked in the service); refused with 409 when the customer has nalozi. */

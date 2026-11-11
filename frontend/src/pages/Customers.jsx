@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { nalogApi } from '../api/nalog';
@@ -7,15 +7,44 @@ import { useLang } from '../i18n/LangContext';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
 import Spinner from '../components/Spinner';
+import { BulkBar } from '../components/BulkBar';
+import { SelectBox } from '../components/SelectBox';
+import { useSelection } from '../hooks/useSelection';
 import EmptyState from '../components/EmptyState';
 
 export default function Customers() {
   const { t } = useLang();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [customers, setCustomers] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
   const [selected, setSelected] = useState(null);
+
+  // Row selection: delete several customers at once (admin only; customers with nalozi are skipped by the server)
+  const pageIds = useMemo(() => customers.map((c) => c.id), [customers]);
+  const sel = useSelection(isAdmin ? pageIds : []);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkMsg, setBulkMsg] = useState({ text: '', error: false });
+
+  async function bulkDelete() {
+    setBulkBusy(true);
+    setBulkMsg({ text: '', error: false });
+    try {
+      const r = await nalogApi.bulkDeleteCustomers(sel.selectedIds);
+      const names = r.skipped.map((s) => s.fullName || `#${s.id}`).join(', ');
+      setBulkMsg({ text: t('bulk_customersResult', r.deleted, names), error: false });
+      sel.clear();
+      await load();
+    } catch (err) {
+      setBulkMsg({ text: err.message, error: true });
+    } finally {
+      setBulkBusy(false);
+      setConfirmDelete(false);
+    }
+  }
 
   async function load() {
     setLoading(true);
@@ -51,6 +80,21 @@ export default function Customers() {
         style={{ maxWidth: 320, marginBottom: 18 }}
       />
 
+      {isAdmin && sel.count > 0 && (
+        <BulkBar count={sel.count} onClear={sel.clear}>
+          <button type="button" className="btn btn-sm" disabled={bulkBusy}
+                  style={{ background: 'var(--danger)', borderColor: 'var(--danger)' }}
+                  onClick={() => setConfirmDelete(true)}>{t('bulk_delete')}</button>
+        </BulkBar>
+      )}
+
+      {bulkMsg.text && (
+        <div role={bulkMsg.error ? 'alert' : 'status'}
+             style={{ fontSize: 13, marginBottom: 14, color: bulkMsg.error ? 'var(--danger)' : 'var(--stone)' }}>
+          {bulkMsg.text}
+        </div>
+      )}
+
       {loading ? (
         <div style={{ padding: '20px 0' }}><Spinner label={t('jobBoard_loading')} /></div>
       ) : customers.length === 0 ? (
@@ -62,6 +106,11 @@ export default function Customers() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                {isAdmin && (
+                  <th style={{ padding: '10px 0 10px 14px', width: 32, textAlign: 'left' }}>
+                    <SelectBox checked={sel.allSelected} indeterminate={sel.someSelected} onChange={sel.toggleAll} label={t('bulk_selectAll')} />
+                  </th>
+                )}
                 <Th>{t('customers_name')}</Th>
                 <Th>{t('customers_phone')}</Th>
                 <Th>{t('customers_address')}</Th>
@@ -72,10 +121,16 @@ export default function Customers() {
                 <tr
                   key={c.id}
                   onClick={() => setSelected(c.id)}
-                  style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+                  style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer',
+                           background: sel.isSelected(c.id) ? 'var(--paper)' : undefined }}
                   onMouseEnter={(e) => e.currentTarget.style.background = 'var(--paper)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = sel.isSelected(c.id) ? 'var(--paper)' : 'transparent'}
                 >
+                  {isAdmin && (
+                    <td style={{ padding: '10px 0 10px 14px' }}>
+                      <SelectBox checked={sel.isSelected(c.id)} onChange={() => sel.toggle(c.id)} label={t('bulk_selectRow')} />
+                    </td>
+                  )}
                   <Td><strong>{c.fullName}</strong></Td>
                   <Td>{c.phone || '—'}</Td>
                   <Td>{c.address || '—'}</Td>
@@ -86,6 +141,10 @@ export default function Customers() {
         </div>
       )}
 
+      {confirmDelete && (
+        <ConfirmDialog message={t('bulk_confirmDeleteCustomers', sel.count)} busy={bulkBusy}
+                       onCancel={() => setConfirmDelete(false)} onConfirm={bulkDelete} />
+      )}
       {showNew && (
         <NewCustomerModal onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); load(); }} />
       )}

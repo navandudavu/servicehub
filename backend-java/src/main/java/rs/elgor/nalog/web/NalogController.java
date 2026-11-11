@@ -103,6 +103,20 @@ public class NalogController {
         return ResponseEntity.noContent().build();
     }
 
+    /** Admin only, all or nothing: any COMPLETED nalog in the selection refuses the whole request. */
+    @PostMapping("/bulk-delete")
+    @PreAuthorize("hasRole('ADMIN')")
+    public BulkDtos.BulkResult bulkDelete(@Valid @RequestBody BulkDtos.BulkIds request, @AuthenticationPrincipal Jwt jwt) {
+        return new BulkDtos.BulkResult(deleteService.deleteMany(request.ids(), directory.resolve(jwt)));
+    }
+
+    /** Admin only, all or nothing. {"ids": [...], "technicianId": 3} assigns, null technicianId un-assigns. */
+    @PostMapping("/bulk-assign")
+    @PreAuthorize("hasRole('ADMIN')")
+    public BulkDtos.BulkResult bulkAssign(@Valid @RequestBody BulkDtos.BulkAssign request, @AuthenticationPrincipal Jwt jwt) {
+        return new BulkDtos.BulkResult(nalogService.assignMany(request.ids(), request.technicianId(), directory.resolve(jwt)));
+    }
+
     @PatchMapping("/{id}/status")
     public NalogResponse changeStatus(@PathVariable Long id,
                                       @Valid @RequestBody ChangeStatusRequest request,

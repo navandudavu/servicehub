@@ -4,7 +4,7 @@ import { useLang } from '../i18n/LangContext';
 // dialog matching the rest of the app instead of the browser's native
 // unstyled prompt. Danger-styled by default since every current use is a
 // destructive action; pass danger={false} if a future use isn't.
-export default function ConfirmDialog({ message, onConfirm, onCancel, danger = true, busy = false }) {
+export default function ConfirmDialog({ message, onConfirm, onCancel, danger = true, busy = false, confirmLabel = '', busyLabel = '' }) {
   const { t } = useLang();
 
   return (
@@ -29,7 +29,7 @@ export default function ConfirmDialog({ message, onConfirm, onCancel, danger = t
             disabled={busy}
             style={danger ? { background: 'var(--danger)', borderColor: 'var(--danger)' } : undefined}
           >
-            {busy ? t('common_deleting') : t('common_delete')}
+            {busy ? (busyLabel || t('common_deleting')) : (confirmLabel || t('common_delete'))}
           </button>
         </div>
       </div>

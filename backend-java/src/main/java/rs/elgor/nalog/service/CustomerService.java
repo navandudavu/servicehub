@@ -81,6 +81,32 @@ public class CustomerService {
         customers.flush();
     }
 
+    /**
+     * Delete a selection. Customers that still have nalozi (or no longer exist) are skipped and reported back,
+     * the rest are deleted; everything in one transaction, so an unexpected error rolls all of it back.
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public rs.elgor.nalog.dto.BulkDtos.BulkCustomerDelete deleteMany(java.util.List<Long> ids, AuthUser actor) {
+        if (!actor.isAdmin()) {
+            throw NalogException.forbidden("Only an admin can delete a customer");
+        }
+        java.util.List<rs.elgor.nalog.dto.BulkDtos.BulkCustomerDelete.Skipped> skipped = new java.util.ArrayList<>();
+        int deleted = 0;
+        for (Long id : ids.stream().distinct().sorted().toList()) {
+            Customer c = customers.findById(id).orElse(null);
+            if (c == null) {
+                skipped.add(new rs.elgor.nalog.dto.BulkDtos.BulkCustomerDelete.Skipped(id, "", "NOT_FOUND"));
+            } else if (nalozi.existsByCustomerId(id)) {
+                skipped.add(new rs.elgor.nalog.dto.BulkDtos.BulkCustomerDelete.Skipped(id, c.getFullName(), "HAS_NALOZI"));
+            } else {
+                customers.delete(c);
+                deleted++;
+            }
+        }
+        customers.flush();
+        return new rs.elgor.nalog.dto.BulkDtos.BulkCustomerDelete(deleted, skipped);
+    }
+
     // ---- helpers -----------------------------------------------------------
 
     private Customer load(Long id) {

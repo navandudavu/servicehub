@@ -1,9 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { nalogApi } from '../api/nalog';
 import { NalogApiError } from '../api/nalogApi';
+import { BulkBar } from '../components/BulkBar';
 import Modal from '../components/Modal';
+import { SelectBox } from '../components/SelectBox';
 import Spinner from '../components/Spinner';
+import { useCurrentUser } from '../context/typedAuth';
 import { useLang } from '../i18n/typedLang';
+import { useSelection } from '../hooks/useSelection';
 import { formatMoney } from '../print/formatMoney';
 import type { PageResponse, PartResponse, StockMovementView } from '../types/nalog';
 
@@ -17,6 +21,7 @@ const errText = (e: unknown, fallback: string) => (e instanceof NalogApiError ? 
 
 export default function Parts() {
   const { t } = useLang();
+  const isAdmin = useCurrentUser()?.role === 'admin';
   const [q, setQ] = useState('');
   const [query, setQuery] = useState('');           // debounced copy of q
   const [showInactive, setShowInactive] = useState(false);
@@ -49,6 +54,24 @@ export default function Parts() {
 
   const reload = () => { setData(null); load(); };
 
+  // Row selection: deactivate / reactivate several parts at once (admin only)
+  const pageIds = useMemo(() => data?.items.map((p) => p.id) ?? [], [data]);
+  const sel = useSelection(isAdmin ? pageIds : []);
+  const [bulkBusy, setBulkBusy] = useState(false);
+
+  async function bulkActive(active: boolean) {
+    setBulkBusy(true);
+    try {
+      await nalogApi.bulkSetPartsActive(sel.selectedIds, active);
+      sel.clear();
+      await load();
+    } catch (e) {
+      setError(errText(e, t('nalogForm_unexpected')));
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
@@ -66,6 +89,13 @@ export default function Parts() {
         </label>
       </div>
 
+      {isAdmin && sel.count > 0 && (
+        <BulkBar count={sel.count} onClear={sel.clear}>
+          <button type="button" className="btn-secondary btn-sm" disabled={bulkBusy} onClick={() => bulkActive(true)}>{t('bulk_activate')}</button>
+          <button type="button" className="btn-secondary btn-sm" disabled={bulkBusy} onClick={() => bulkActive(false)}>{t('bulk_deactivate')}</button>
+        </BulkBar>
+      )}
+
       {error && <div style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 12 }}>{error}</div>}
 
       {!data ? <Spinner label={t('jobBoard_loading')} /> : data.items.length === 0 ? (
@@ -75,6 +105,11 @@ export default function Parts() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
             <thead>
               <tr style={{ textAlign: 'left', color: 'var(--stone)', fontSize: 12 }}>
+                {isAdmin && (
+                  <th style={{ padding: '10px 0 10px 14px', width: 32 }}>
+                    <SelectBox checked={sel.allSelected} indeterminate={sel.someSelected} onChange={sel.toggleAll} label={t('bulk_selectAll')} />
+                  </th>
+                )}
                 <th style={{ padding: '10px 14px' }}>{t('parts_sku')}</th>
                 <th>{t('parts_name')}</th>
                 <th style={{ textAlign: 'right' }}>{t('parts_price')}</th>
@@ -85,7 +120,13 @@ export default function Parts() {
             </thead>
             <tbody>
               {data.items.map((p) => (
-                <tr key={p.id} style={{ borderTop: '1px solid var(--border)', opacity: p.active ? 1 : 0.55 }}>
+                <tr key={p.id} style={{ borderTop: '1px solid var(--border)', opacity: p.active ? 1 : 0.55,
+                                        background: sel.isSelected(p.id) ? 'var(--paper)' : undefined }}>
+                  {isAdmin && (
+                    <td style={{ padding: '9px 0 9px 14px' }}>
+                      <SelectBox checked={sel.isSelected(p.id)} onChange={() => sel.toggle(p.id)} label={t('bulk_selectRow')} />
+                    </td>
+                  )}
                   <td style={{ padding: '9px 14px', fontFamily: 'var(--mono)' }}>{p.sku}</td>
                   <td>{p.name}</td>
                   <td style={{ textAlign: 'right', fontFamily: 'var(--mono)' }}>{formatMoney(p.unitPrice)}</td>
