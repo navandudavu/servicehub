@@ -84,6 +84,12 @@ Kontrolna tabla i Kalendar čitaju naloge; administrator zakazuje planirani dola
 
 **Klijenti** (`/api/customers`): GET lista (`?q=`), GET `/{id}` (sa istorijom naloga; serviser vidi samo svoje), POST i PUT (svi), DELETE (admin; 409 ako klijent ima naloge). Postoji **jedna** tabela klijenata, ista kao u formularu naloga.
 
+**Grupne akcije** (samo administrator; na listama Radni nalozi, Delovi i Klijenti kvačice po redu i „izaberi sve“ za redove na ekranu, kao u Gmail-u; najviše 200 stavki):
+- `POST /api/nalozi/bulk-delete` `{ids}` – sve ili ništa: ako je bilo koji nalog *Završen*, ništa se ne briše (odgovor navodi brojeve). Delovi se vraćaju u magacin kao pri pojedinačnom brisanju.
+- `POST /api/nalozi/bulk-assign` `{ids, technicianId}` – sve ili ništa; `technicianId: null` uklanja servisera. Završeni i otkazani nalozi se ne mogu dodeliti.
+- `POST /api/parts/bulk-active` `{ids, active}` – aktiviranje / deaktiviranje delova (sve ili ništa).
+- `POST /api/customers/bulk-delete` `{ids}` – klijenti koji imaju naloge se preskaču i vraćaju u odgovoru (`skipped`), ostali se brišu.
+
 **Nalozi i magacin:**
 
 | Metoda | Putanja | Ko |

@@ -64,6 +64,20 @@ public class PartService {
         return PartResponse.from(partRepository.saveAndFlush(p));
     }
 
+    /** Activate / deactivate a selection (hidden from the part picker, never deleted). All or nothing. */
+    @Transactional(rollbackFor = Exception.class)
+    public int setActiveMany(List<Long> ids, boolean active) {
+        List<Long> sorted = ids.stream().distinct().sorted().toList();
+        List<Part> found = partRepository.findAllById(sorted);
+        if (found.size() != sorted.size()) {
+            throw NalogException.notFound("Neki izabrani delovi više ne postoje. Ništa nije promenjeno.");
+        }
+        found.forEach(p -> p.setActive(active));
+        partRepository.saveAll(found);
+        partRepository.flush();
+        return found.size();
+    }
+
     /** Last 50 ledger rows for one part (admin screen). */
     @Transactional(readOnly = true)
     public List<StockMovementView> movements(Long id) {

@@ -71,4 +71,31 @@ public class NalogDeleteService {
 
         log.info("Nalog {} ({}) deleted by {}", nalog.getNalogNumber(), nalog.getStatus(), actor.name());
     }
+
+    /**
+     * Delete a selection, all or nothing: if any of them is COMPLETED (or has vanished) nothing is deleted.
+     * Runs in ONE transaction; each nalog goes through the same single-delete path (stock back, log row, photos).
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public int deleteMany(java.util.List<Long> ids, AuthUser actor) {
+        if (actor == null || !actor.isAdmin()) {
+            throw NalogException.forbidden("Only an admin can delete a nalog");
+        }
+        java.util.List<Long> sorted = ids.stream().distinct().sorted().toList();   // same lock order every time
+        java.util.List<Nalog> found = nalogRepository.findAllById(sorted);
+        if (found.size() != sorted.size()) {
+            throw NalogException.notFound("Neki izabrani nalozi više ne postoje. Ništa nije obrisano.");
+        }
+        java.util.List<String> completed = found.stream()
+                .filter(n -> n.getStatus() == NalogStatus.COMPLETED)
+                .map(Nalog::getNalogNumber).sorted().toList();
+        if (!completed.isEmpty()) {
+            throw NalogException.conflict("Završeni nalozi se ne mogu obrisati: " + String.join(", ", completed)
+                    + ". Ništa nije obrisano.");
+        }
+        for (Long id : sorted) {
+            delete(id, actor);
+        }
+        return sorted.size();
+    }
 }

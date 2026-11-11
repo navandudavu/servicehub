@@ -1,18 +1,22 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { nalogApi } from '../api/nalog';
 import { NalogApiError } from '../api/nalogApi';
 import { NalogStatusTag } from '../components/NalogStatusTag';
+import ConfirmDialog from '../components/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
+import { BulkBar } from '../components/BulkBar';
+import { SelectBox } from '../components/SelectBox';
 import Spinner from '../components/Spinner';
 import { useCurrentUser } from '../context/typedAuth';
 import { useLang } from '../i18n/typedLang';
 import { usePolling } from '../hooks/usePolling';
+import { useSelection } from '../hooks/useSelection';
 import { formatMoney } from '../print/formatMoney';
 import { NALOG_STATUSES, type NalogStatus, type NalogSummary, type PageResponse, type TechnicianView } from '../types/nalog';
 
 const PAGE_SIZE = 20;
-const COLS = '120px 1.4fr 1.2fr 130px 1fr 120px';
+const BASE_COLS = '120px 1.4fr 1.2fr 130px 1fr 120px';
 
 export default function NalozList() {
   const { t, lang } = useLang();
@@ -31,6 +35,15 @@ export default function NalozList() {
   const [data, setData] = useState<PageResponse<NalogSummary> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // Row selection and bulk actions (admin only: the server refuses them for everybody else)
+  const cols = isAdmin ? `32px ${BASE_COLS}` : BASE_COLS;
+  const pageIds = useMemo(() => data?.items.map((n) => n.id) ?? [], [data]);
+  const sel = useSelection(isAdmin ? pageIds : []);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [pendingAssign, setPendingAssign] = useState<{ id: number | null; name: string } | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkError, setBulkError] = useState('');
 
   useEffect(() => {
     const timer = setTimeout(() => { setDebouncedQuery(query.trim()); setPage(0); }, 300);
@@ -83,6 +96,27 @@ export default function NalozList() {
     setData(d);
   }, 20000);
 
+  async function runBulk(action: () => Promise<unknown>) {
+    setBulkBusy(true);
+    setBulkError('');
+    try {
+      await action();
+      sel.clear();
+      setData(await nalogApi.listNalozi({
+        status: status || undefined,
+        q: debouncedQuery || undefined,
+        assignedTo: isAdmin && assignedTo ? Number(assignedTo) : undefined,
+        page, size: PAGE_SIZE,
+      }));
+    } catch (e) {
+      setBulkError(e instanceof NalogApiError ? e.message : t('nalogForm_unexpected'));
+    } finally {
+      setBulkBusy(false);
+      setConfirmDelete(false);
+      setPendingAssign(null);
+    }
+  }
+
   const fmtDate = (iso: string) => new Date(iso).toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' });
 
   return (
@@ -112,6 +146,32 @@ export default function NalozList() {
         )}
       </div>
 
+      {isAdmin && sel.count > 0 && (
+        <BulkBar count={sel.count} onClear={sel.clear}>
+          <select className="input" style={{ width: 'auto' }} value="" disabled={bulkBusy}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (!v) return;
+                    setPendingAssign(v === 'none'
+                      ? { id: null, name: t('nalogForm_unassigned') }
+                      : { id: Number(v), name: technicians.find((x) => String(x.id) === v)?.name ?? '' });
+                  }}>
+            <option value="">{t('bulk_assignTo')}</option>
+            <option value="none">{t('nalogForm_unassigned')}</option>
+            {technicians.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+          </select>
+          <button type="button" className="btn btn-sm" disabled={bulkBusy}
+                  style={{ background: 'var(--danger)', borderColor: 'var(--danger)' }}
+                  onClick={() => setConfirmDelete(true)}>{t('bulk_delete')}</button>
+        </BulkBar>
+      )}
+
+      {bulkError && (
+        <div role="alert" style={{ background: '#FBEAE5', color: 'var(--danger)', padding: '10px 14px', borderRadius: 4, marginBottom: 16, fontSize: 13 }}>
+          {bulkError}
+        </div>
+      )}
+
       {technicianError && (
         <div role="alert" style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 12 }}>
           {`Unable to refresh technician list: ${technicianError}`}
@@ -125,7 +185,10 @@ export default function NalozList() {
       )}
 
       <div className="card" style={{ overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: COLS, gap: 12, padding: '9px 16px', fontSize: 11.5, fontWeight: 600, color: 'var(--stone)', borderBottom: '1px solid var(--border)', background: 'var(--paper)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: cols, gap: 12, padding: '9px 16px', fontSize: 11.5, fontWeight: 600, color: 'var(--stone)', borderBottom: '1px solid var(--border)', background: 'var(--paper)' }}>
+          {isAdmin && (
+            <div><SelectBox checked={sel.allSelected} indeterminate={sel.someSelected} onChange={sel.toggleAll} label={t('bulk_selectAll')} /></div>
+          )}
           <div>{t('nalog_col_number')}</div><div>{t('nalog_col_customer')}</div><div>{t('nalog_col_appliance')}</div>
           <div>{t('nalog_col_status')}</div><div>{t('nalog_col_assigned')}</div><div style={{ textAlign: 'right' }}>{t('nalog_col_total')}</div>
         </div>
@@ -138,7 +201,11 @@ export default function NalozList() {
           data?.items.map((n) => (
             <div key={n.id} onClick={() => navigate(`/nalozi/${n.id}`)} role="link" tabIndex={0}
                  onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/nalozi/${n.id}`); }}
-                 style={{ display: 'grid', gridTemplateColumns: COLS, gap: 12, padding: '11px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer', alignItems: 'center', opacity: loading ? 0.6 : 1 }}>
+                 style={{ display: 'grid', gridTemplateColumns: cols, gap: 12, padding: '11px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer', alignItems: 'center', opacity: loading ? 0.6 : 1,
+                          background: sel.isSelected(n.id) ? 'var(--paper)' : undefined }}>
+              {isAdmin && (
+                <div><SelectBox checked={sel.isSelected(n.id)} onChange={() => sel.toggle(n.id)} label={t('bulk_selectRow')} /></div>
+              )}
               <div>
                 <div style={{ fontFamily: 'var(--mono)', fontSize: 12.5, fontWeight: 500 }}>{n.nalogNumber}</div>
                 <div style={{ fontSize: 11.5, color: 'var(--stone)' }}>{fmtDate(n.createdAt)}</div>
@@ -155,6 +222,20 @@ export default function NalozList() {
           ))
         )}
       </div>
+
+      {confirmDelete && (
+        <ConfirmDialog message={t('bulk_confirmDeleteNalozi', sel.count)} busy={bulkBusy}
+                       onCancel={() => setConfirmDelete(false)}
+                       onConfirm={() => runBulk(() => nalogApi.bulkDeleteNalozi(sel.selectedIds))} />
+      )}
+      {pendingAssign && (
+        <ConfirmDialog danger={false} confirmLabel={t('bulk_assignConfirm')} busyLabel="…" busy={bulkBusy}
+                       message={pendingAssign.id === null
+                         ? t('bulk_confirmUnassign', sel.count)
+                         : t('bulk_confirmAssign', sel.count, pendingAssign.name)}
+                       onCancel={() => setPendingAssign(null)}
+                       onConfirm={() => runBulk(() => nalogApi.bulkAssignNalozi(sel.selectedIds, pendingAssign.id))} />
+      )}
 
       {data && data.totalPages > 1 && (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 14, marginTop: 16 }}>

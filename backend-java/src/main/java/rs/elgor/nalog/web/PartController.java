@@ -7,6 +7,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+import rs.elgor.nalog.dto.BulkDtos;
 import rs.elgor.nalog.dto.PageResponse;
 import rs.elgor.nalog.dto.PartDtos.*;
 import rs.elgor.nalog.service.PartService;
@@ -47,6 +48,13 @@ public class PartController {
     @PreAuthorize("hasRole('ADMIN')")
     public PartResponse update(@PathVariable Long id, @Valid @RequestBody UpdatePartRequest request) {
         return partService.update(id, request);
+    }
+
+    /** Admin only, all or nothing: activate or deactivate a selection of parts. */
+    @PostMapping("/bulk-active")
+    @PreAuthorize("hasRole('ADMIN')")
+    public BulkDtos.BulkResult bulkActive(@Valid @RequestBody BulkDtos.BulkActive request) {
+        return new BulkDtos.BulkResult(partService.setActiveMany(request.ids(), request.active()));
     }
 
     @GetMapping("/{id}/movements")
