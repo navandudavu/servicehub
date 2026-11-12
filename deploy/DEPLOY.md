@@ -45,7 +45,6 @@ Email je `ADMIN_EMAIL` iz `.env` (podrazumevano `admin@servicehub.local`). Zapis
 | `SITE_ADDRESS` | domen (`servis.vasafirma.rs`) → automatski HTTPS; ili `:80` iza tunela / za test u LAN-u |
 | `PUBLIC_URL` | kako telefoni/browser dolaze do servera, npr. `https://servis.vasafirma.rs` |
 | `ADMIN_EMAIL` | email prvog administratora (samo pri prvom startu) |
-| `LABOR_RATE`, `VAT_RATE` | prave cene (neto, bez PDV-a) i PDV, bez rebuild-a |
 | `BACKUP_DIR`, `REQUIRE_MOUNT` | gde ide backup (**drugi disk**) i putanja tacke montiranja tog diska |
 | `BACKUP_REMOTE` | opciono: rsync odrediste van racunara |
 

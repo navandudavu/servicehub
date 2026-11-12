@@ -106,7 +106,7 @@ public class NalogService {
         lines.forEach(nalog::addPartLine);
 
         // 5. Money. Computed here, in Java, with BigDecimal + HALF_UP (RULE A).
-        PricingCalculator.Totals t = pricing.calculate(req.laborHours(), toPriceLines(lines));
+        PricingCalculator.Totals t = pricing.flat(req.price());
 
         // 6. Assemble.
         nalog.setNalogNumber(nextNalogNumber());
@@ -164,9 +164,7 @@ public class NalogService {
     public NalogPreview preview(PreviewRequest req, AuthUser actor) {
         Nalog editing = req.nalogId() == null ? null : loadAccessible(req.nalogId(), actor);
         List<NalogPartLine> lines = buildLines(req.partLines(), false, editing);
-        PricingCalculator.Totals t = editing == null
-                ? pricing.calculate(req.laborHours(), toPriceLines(lines))
-                : pricing.calculate(req.laborHours(), toPriceLines(lines), editing.getLaborRate(), editing.getVatRate());
+        PricingCalculator.Totals t = pricing.flat(req.price() != null || editing == null ? req.price() : editing.getTotal());
         return new NalogPreview(req.laborHours(), t.laborRate(), t.laborTotal(),
                 lines.stream().map(l -> new NalogResponse.PartLineView(l.getPart().getId(), l.getPartSku(),
                         l.getPartName(), l.getUnitPrice(), l.getQuantity(), l.getLineTotal())).toList(),
@@ -382,8 +380,7 @@ public class NalogService {
             }
         }
 
-        PricingCalculator.Totals t = pricing.calculate(req.laborHours(), toPriceLines(nalog.getPartLines()),
-                nalog.getLaborRate(), nalog.getVatRate());
+        PricingCalculator.Totals t = pricing.flat(req.price() != null ? req.price() : nalog.getTotal());
 
         nalog.setCustomer(customer);
         nalog.setApplianceType(req.appliance().type());
@@ -542,10 +539,6 @@ public class NalogService {
             lines.add(line);
         }
         return lines;
-    }
-
-    private static List<PricingCalculator.Line> toPriceLines(List<NalogPartLine> lines) {
-        return lines.stream().map(l -> new PricingCalculator.Line(l.getUnitPrice(), l.getQuantity())).toList();
     }
 
     private void recordHistory(Long nalogId, NalogStatus from, NalogStatus to, AuthUser actor) {

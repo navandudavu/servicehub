@@ -16,7 +16,7 @@ else
   # tajne se generisu ovde i nigde se ne ispisuju
   sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=$(openssl rand -hex 24)|" .env
   sed -i "s|^JWT_SECRET=.*|JWT_SECRET=$(openssl rand -hex 32)|" .env
-  echo ".env napravljen sa novim tajnama. Otvorite ga i podesite SITE_ADDRESS, PUBLIC_URL, LABOR_RATE, VAT_RATE, BACKUP_DIR."
+  echo ".env napravljen sa novim tajnama. Otvorite ga i podesite SITE_ADDRESS, PUBLIC_URL, BACKUP_DIR."
 fi
 
 # Docker bi inace sam napravio ove fascikle kao root, pa servisi (koji ne rade kao root) ne bi mogli da pisu.

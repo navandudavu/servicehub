@@ -1,5 +1,5 @@
 import type { ApplianceType, NalogResponse, NalogStatus, PaymentType } from '../types/nalog';
-import { formatMoney, formatRate } from '../print/formatMoney';
+import { formatMoney } from '../print/formatMoney';
 import type { CompanyInfo } from '../print/company';
 
 /**
@@ -99,33 +99,25 @@ export function NalogPrint({ nalog, company }: { nalog: NalogResponse; company: 
         </div>
       )}
 
-      <table>
-        <thead>
-          <tr><th>Opis</th><th className="num">Kol.</th><th className="num">Cena</th><th className="num">Iznos (RSD)</th></tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Rad (servis)</td>
-            <td className="num">{nalog.laborHours} h</td>
-            <td className="num">{formatMoney(nalog.laborRate)}</td>
-            <td className="num">{formatMoney(nalog.laborTotal)}</td>
-          </tr>
-          {nalog.partLines.map((l) => (
-            <tr key={l.partId}>
-              <td>{l.name} <span className="muted">({l.sku})</span></td>
-              <td className="num">{l.quantity}</td>
-              <td className="num">{formatMoney(l.unitPrice)}</td>
-              <td className="num">{formatMoney(l.lineTotal)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {nalog.partLines.length > 0 && (
+        <table>
+          <thead>
+            <tr><th>Ugrađeni delovi</th><th className="num">Kol.</th></tr>
+          </thead>
+          <tbody>
+            {nalog.partLines.map((l) => (
+              <tr key={l.partId}>
+                <td>{l.name} <span className="muted">({l.sku})</span></td>
+                <td className="num">{l.quantity}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
 
       <table className="totals">
         <tbody>
-          <tr><td>Osnovica</td><td className="num">{formatMoney(nalog.subtotal)}</td></tr>
-          <tr><td>PDV {formatRate(nalog.vatRate)}</td><td className="num">{formatMoney(nalog.vatAmount)}</td></tr>
-          <tr className="grand"><td>UKUPNO</td><td className="num">{formatMoney(nalog.total)} RSD</td></tr>
+          <tr className="grand"><td>CENA</td><td className="num">{formatMoney(nalog.total)} RSD</td></tr>
         </tbody>
       </table>
       <div>Način plaćanja: <strong>{PAYMENT_SR[nalog.paymentType]}</strong></div>

@@ -39,7 +39,7 @@ Mogu svi nalozi osim **završenih**.
 
 - **Izmena** (dugme *Izmeni* na stranici naloga; administrator bilo koji, serviser samo svoj): klijent, uređaj, dijagnoza, delovi, sati, plaćanje. Status, planirani dolazak i dodela imaju svoja dugmad. Otkazani nalog se ne menja (delovi su mu već vraćeni).
   - U magacinu se pomera samo **razlika** (sa 2 na 5 komada uzima još 3; uklanjanje dela ga vraća), svako pomeranje ide u istoriju dela.
-  - Cene: delovi koji su već na nalogu zadržavaju svoju cenu, cena rada i PDV ostaju oni iz trenutka kreiranja; samo novododati deo ide po današnjoj ceni. Prikaz cene u formularu dolazi sa servera i isti je kao pri čuvanju.
+  - Cena naloga se upisuje **ručno** (jedan iznos, bez satnice, PDV-a i zbira delova). Delovi na nalogu služe samo za stanje magacina. Ako se pri izmeni cena ne pošalje, nalog zadržava svoju cenu.
   - Ako je neko drugi u međuvremenu izmenio nalog, čuvanje daje 409 („učitajte ponovo“) umesto da pregazi njegov rad.
   - Izmena podataka o klijentu pravi **ispravljeni zapis klijenta samo za taj nalog**; stari nalozi zadržavaju originalne podatke (zato ostaje duplikat u listi klijenata).
 - **Brisanje** (dugme *Obriši*, samo administrator, uz potvrdu): delovi se vraćaju na stanje (otkazani nalog ih je već vratio), brišu se fotografije (fajlovi tek nakon uspešnog brisanja), beleške i istorija. Ostaje zapis ko je šta i kada obrisao (`nalog_deleted_log`).
@@ -101,7 +101,7 @@ Kontrolna tabla i Kalendar čitaju naloge; administrator zakazuje planirani dola
 | POST | `/api/nalozi` | svi (serviser: automatski dodeljen sebi) |
 | PUT | `/api/nalozi/{id}` | admin / vlasnik naloga; ne za završene i otkazane |
 | DELETE | `/api/nalozi/{id}` | admin; ne za završene |
-| POST | `/api/nalozi/preview` | svi – cena bez čuvanja (`nalogId` = cena pri izmeni) |
+| POST | `/api/nalozi/preview` | svi – provera zaliha bez čuvanja (`nalogId` = izmena) |
 | GET | `/api/nalozi`, `/{id}`, `/{id}/history` | svi (po pravilu pristupa) |
 | PATCH | `/api/nalozi/{id}/status` | svi (otkazivanje: admin) |
 | PATCH | `/api/nalozi/{id}/assign`, `/{id}/schedule` | admin |
@@ -198,7 +198,7 @@ Nova instalacija ovo ne traži.
 ## Šta još nedostaje
 
 - **Pravi izgled radnog naloga za štampu** (sada je probni) i **podaci firme** (PIB, MB, telefon, račun) u `frontend/src/print/company.ts`.
-- **Prava cena rada i PDV** – sada probno 2500 RSD/h i 20 % u `backend-java/src/main/resources/application.yml`.
+- ~~Prava cena rada i PDV~~ – ukinuto: cena se upisuje ručno na svakom nalogu. Stari nalozi zadržavaju svoj raniji obračun.
 - Android aplikacija (repo `elgor_technician`, grana `main`) ima beleške i brisanje naloga, ali ne i izmenu (ona je samo na vebu). Kompajlira se u Android Studiju.
 - Postavljanje na server: skripte i uputstvo su u `deploy/` (`DEPLOY.md`: Docker + Caddy, HTTPS ili Cloudflare Tunnel, noćni backup baze **i** fotografija, restore, UPS/NUT). Docker build prolazi, ali **pun restore i prelazak sa Node servera još nisu isprobani na pravom serveru**, pa ih treba proveriti ručno.
 - Moguće kasnije: istorija opreme po serijskom broju, dodatni izveštaji (prosečna vrednost naloga, najčešće popravljani uređaji), pretraga po datumu i klijentu. Rezervacija delova, particionisanje baze i slično nisu potrebni za ovu veličinu firme.

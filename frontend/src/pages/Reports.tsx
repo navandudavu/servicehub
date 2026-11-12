@@ -26,7 +26,7 @@ function Table({ title, rows, label }: { title: string; rows: ReportRow[]; label
           <thead>
             <tr style={{ textAlign: 'right', color: 'var(--stone)', fontSize: 12 }}>
               <th style={{ textAlign: 'left', padding: '4px 0' }} />
-              <th>{t('reports_completed')}</th><th>{t('reports_hours')}</th><th>{t('reports_subtotal')}</th><th>{t('reports_vat')}</th><th>{t('reports_total')}</th>
+              <th>{t('reports_completed')}</th><th>{t('reports_hours')}</th><th>{t('reports_total')}</th>
             </tr>
           </thead>
           <tbody>
@@ -34,7 +34,6 @@ function Table({ title, rows, label }: { title: string; rows: ReportRow[]; label
               <tr key={r.key} style={{ borderTop: '1px solid var(--border)', textAlign: 'right' }}>
                 <td style={{ textAlign: 'left', padding: '6px 0' }}>{label(r.key)}</td>
                 <td>{r.totals.count}</td><td>{r.totals.laborHours}</td>
-                <td>{formatMoney(r.totals.subtotal)}</td><td>{formatMoney(r.totals.vatAmount)}</td>
                 <td style={{ fontWeight: 600 }}>{formatMoney(r.totals.total)}</td>
               </tr>
             ))}
@@ -133,9 +132,6 @@ export default function Reports() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 18 }}>
               <Stat label={t('reports_completed')} value={String(totals.count)} />
               <Stat label={t('reports_hours')} value={totals.laborHours} />
-              <Stat label={t('reports_parts')} value={formatMoney(totals.partsTotal)} />
-              <Stat label={t('reports_subtotal')} value={formatMoney(totals.subtotal)} />
-              <Stat label={t('reports_vat')} value={formatMoney(totals.vatAmount)} />
               <Stat label={t('reports_total')} value={`${formatMoney(totals.total)} RSD`} />
             </div>
             <Table title={t('reports_byTechnician')} rows={data.byTechnician} label={(k) => (k === '-' ? t('nalogForm_unassigned') : k)} />

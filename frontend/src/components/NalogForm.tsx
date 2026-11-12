@@ -5,7 +5,7 @@ import { formatMoney } from '../print/formatMoney';
 import { useLang } from '../i18n/typedLang';
 import {
   APPLIANCE_TYPES, PAYMENT_TYPES,
-  type ApplianceType, type CreateNalogRequest, type CustomerView, type NalogPreview, type NalogResponse,
+  type ApplianceType, type CreateNalogRequest, type CustomerView, type NalogResponse,
   type PartResponse, type PaymentType, type TechnicianView, type UpdateNalogRequest,
 } from '../types/nalog';
 
@@ -30,6 +30,7 @@ interface SelectedPart {
 }
 
 const LABOR_HOURS_RE = /^\d{1,3}(\.\d{1,2})?$/;
+const PRICE_RE = /^\d{1,8}(\.\d{1,2})?$/;
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -83,6 +84,7 @@ export function NalogForm({ isAdmin, onCreated, editing, onSaved }: Props) {
     quantity: l.quantity,
   })));
   const [laborHours, setLaborHours] = useState(editing?.laborHours ?? '0.00');
+  const [price, setPrice] = useState(editing ? editing.total : '');
 
   // --- misc ---
   const [paymentType, setPaymentType] = useState<PaymentType>(editing?.paymentType ?? 'CASH');
@@ -93,9 +95,7 @@ export function NalogForm({ isAdmin, onCreated, editing, onSaved }: Props) {
   const [assignedTo, setAssignedTo] = useState('');
 
   // --- backend-computed preview + submit state ---
-  const [preview, setPreview] = useState<NalogPreview | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
-  const [previewBusy, setPreviewBusy] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -140,26 +140,23 @@ export function NalogForm({ isAdmin, onCreated, editing, onSaved }: Props) {
     return () => { clearTimeout(timer); ctrl.abort(); };
   }, [partQuery]);
 
-  // Debounced price preview: the BACKEND does the maths.
+  // Debounced check with the backend: it reports "not enough stock" before the form is submitted.
   useEffect(() => {
-    if (!LABOR_HOURS_RE.test(laborHours)) { setPreview(null); return; }
+    if (!LABOR_HOURS_RE.test(laborHours)) { return; }
     const ctrl = new AbortController();
-    setPreviewBusy(true);
     const timer = setTimeout(() => {
       nalogApi.previewNalog(
         { laborHours, partLines: selected.map((s) => ({ partId: s.part.id, quantity: s.quantity })), nalogId: editing?.id ?? null },
         ctrl.signal,
       )
-        .then((p) => { setPreview(p); setPreviewError(null); })
+        .then(() => setPreviewError(null))
         .catch((e) => {
           if (e instanceof NalogApiError && e.message !== 'Request cancelled') {
-            setPreview(null);
             setPreviewError(e.message);               // e.g. "Not enough stock for ..."
           }
-        })
-        .finally(() => setPreviewBusy(false));
+        });
     }, 400);
-    return () => { clearTimeout(timer); ctrl.abort(); setPreviewBusy(false); };
+    return () => { clearTimeout(timer); ctrl.abort(); };
   }, [laborHours, selected, editing?.id]);
 
   function addPart(part: PartResponse) {
@@ -185,6 +182,11 @@ export function NalogForm({ isAdmin, onCreated, editing, onSaved }: Props) {
       setFieldErrors({ laborHours: t('nalogForm_hoursInvalid') });
       return;
     }
+    const priceValue = price.trim().replace(',', '.');
+    if (priceValue && !PRICE_RE.test(priceValue)) {
+      setFieldErrors({ price: t('nalogForm_priceInvalid') });
+      return;
+    }
 
     if (editing) {
       const update: UpdateNalogRequest = {
@@ -199,6 +201,7 @@ export function NalogForm({ isAdmin, onCreated, editing, onSaved }: Props) {
         workDone: workDone.trim() || null,
         partLines: selected.map((s) => ({ partId: s.part.id, quantity: s.quantity })),
         laborHours,
+        price: priceValue || null,
         paymentType,
         expectedVersion: editing.version,
       };
@@ -229,6 +232,7 @@ export function NalogForm({ isAdmin, onCreated, editing, onSaved }: Props) {
       diagnosis,
       partLines: selected.map((s) => ({ partId: s.part.id, quantity: s.quantity })),
       laborHours,                                      // a string, never parsed to a float
+      price: priceValue || null,
       paymentType,
       status: isAdmin ? initialStatus : 'DRAFT',
       // datetime-local is browser-local time; toISOString() converts it to the correct UTC instant.
@@ -387,27 +391,12 @@ export function NalogForm({ isAdmin, onCreated, editing, onSaved }: Props) {
           </Field>
         </div>
 
-        {/* DISPLAY of numbers computed by the Java backend. */}
-        <div aria-live="polite" style={{ marginTop: 6 }}>
-          {previewError && <div role="alert" style={{ color: 'var(--danger)', fontSize: 13 }}>{previewError}</div>}
-          {previewBusy && !preview && <div style={{ color: 'var(--stone)', fontSize: 13 }}>{t('nalogForm_calculating')}</div>}
-          {preview && (
-            <table style={{ width: '100%', maxWidth: 380, borderCollapse: 'collapse', fontSize: 13.5, opacity: previewBusy ? 0.5 : 1 }}>
-              <tbody>
-                <tr><td>{t('nalogForm_labor')} ({preview.laborHours} h × {formatMoney(preview.laborRate)})</td><td style={{ textAlign: 'right' }}>{formatMoney(preview.laborTotal)}</td></tr>
-                {preview.partLines.map((l) => (
-                  <tr key={l.partId}><td>{l.name} × {l.quantity}</td><td style={{ textAlign: 'right' }}>{formatMoney(l.lineTotal)}</td></tr>
-                ))}
-                <tr><td style={{ paddingTop: 6 }}>{t('nalogForm_subtotal')}</td><td style={{ textAlign: 'right', paddingTop: 6 }}>{formatMoney(preview.subtotal)}</td></tr>
-                <tr><td>{t('nalogForm_vat')}</td><td style={{ textAlign: 'right' }}>{formatMoney(preview.vatAmount)}</td></tr>
-                <tr style={{ fontWeight: 700, fontSize: 15 }}>
-                  <td style={{ borderTop: '2px solid var(--ink)', paddingTop: 4 }}>{t('nalogForm_total')}</td>
-                  <td style={{ borderTop: '2px solid var(--ink)', paddingTop: 4, textAlign: 'right' }}>{formatMoney(preview.total)} RSD</td>
-                </tr>
-              </tbody>
-            </table>
-          )}
+        <div style={{ marginTop: 6, maxWidth: 220 }}>
+          <Field label={t('nalogForm_price')} error={fe('price')}>
+            <input className="input" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0.00" />
+          </Field>
         </div>
+        {previewError && <div role="alert" style={{ color: 'var(--danger)', fontSize: 13, marginTop: 6 }}>{previewError}</div>}
       </Section>
 
       {/* ---------- payment / dispatch ---------- */}

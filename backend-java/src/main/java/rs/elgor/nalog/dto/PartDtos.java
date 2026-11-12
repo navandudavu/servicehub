@@ -13,13 +13,13 @@ public final class PartDtos {
     public record CreatePartRequest(
             @NotBlank @Size(max = 60) String sku,
             @NotBlank @Size(max = 200) String name,
-            @NotNull @DecimalMin("0.00") @Digits(integer = 10, fraction = 2) BigDecimal unitPrice,
+            @DecimalMin("0.00") @Digits(integer = 10, fraction = 2) BigDecimal unitPrice,      // optional: blank = 0.00
             @Min(0) @Max(1_000_000) int stockQty
     ) {}
 
     public record UpdatePartRequest(
             @NotBlank @Size(max = 200) String name,
-            @NotNull @DecimalMin("0.00") @Digits(integer = 10, fraction = 2) BigDecimal unitPrice,
+            @DecimalMin("0.00") @Digits(integer = 10, fraction = 2) BigDecimal unitPrice,      // optional: omitted = unchanged
             boolean active
     ) {}
 
