@@ -10,7 +10,7 @@ import Spinner from '../components/Spinner';
 import { useCurrentUser } from '../context/typedAuth';
 import { useLang } from '../i18n/typedLang';
 import { usePolling } from '../hooks/usePolling';
-import { formatMoney, formatRate } from '../print/formatMoney';
+import { formatMoney } from '../print/formatMoney';
 import { EDITABLE_STATUSES, NEXT_STATUSES, type NalogResponse, type NalogStatus, type StatusHistoryView, type TechnicianView } from '../types/nalog';
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
@@ -184,6 +184,12 @@ export default function NalogDetail() {
             <div style={{ whiteSpace: 'pre-wrap' }}>{nalog.diagnosis}</div>
           </Card>
 
+          {nalog.workDone && (
+            <Card title={t('nalogDetail_workDone')}>
+              <div style={{ whiteSpace: 'pre-wrap' }}>{nalog.workDone}</div>
+            </Card>
+          )}
+
           <NalogPhotos nalogId={nalog.id} canUpload={nalog.status !== 'CANCELLED'} isAdmin={isAdmin} userId={user?.id ?? null} />
 
           <NalogNotes nalogId={nalog.id} isAdmin={isAdmin} />
@@ -191,20 +197,17 @@ export default function NalogDetail() {
           <Card title={t('nalogDetail_partsLabor')}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
               <tbody>
-                <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                  <td style={{ padding: '6px 0' }}>{t('nalogForm_labor')} ({nalog.laborHours} h × {formatMoney(nalog.laborRate)})</td>
-                  <td style={{ textAlign: 'right' }}>{formatMoney(nalog.laborTotal)}</td>
-                </tr>
+                {nalog.partLines.length === 0 && (
+                  <tr><td style={{ padding: '6px 0', color: 'var(--stone)' }}>{t('nalogDetail_noParts')}</td><td /></tr>
+                )}
                 {nalog.partLines.map((l) => (
                   <tr key={l.partId} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '6px 0' }}>{l.name} <span style={{ color: 'var(--stone)' }}>({l.sku})</span> × {l.quantity} @ {formatMoney(l.unitPrice)}</td>
-                    <td style={{ textAlign: 'right' }}>{formatMoney(l.lineTotal)}</td>
+                    <td style={{ padding: '6px 0' }}>{l.name} <span style={{ color: 'var(--stone)' }}>({l.sku})</span></td>
+                    <td style={{ textAlign: 'right' }}>× {l.quantity}</td>
                   </tr>
                 ))}
-                <tr><td style={{ paddingTop: 8 }}>{t('nalogForm_subtotal')}</td><td style={{ textAlign: 'right', paddingTop: 8 }}>{formatMoney(nalog.subtotal)}</td></tr>
-                <tr><td>{t('nalogForm_vat')} {formatRate(nalog.vatRate)}</td><td style={{ textAlign: 'right' }}>{formatMoney(nalog.vatAmount)}</td></tr>
                 <tr style={{ fontWeight: 700, fontSize: 16 }}>
-                  <td style={{ paddingTop: 6 }}>{t('nalogForm_total')}</td>
+                  <td style={{ paddingTop: 6 }}>{t('nalogForm_price')}</td>
                   <td style={{ textAlign: 'right', paddingTop: 6 }}>{formatMoney(nalog.total)} RSD</td>
                 </tr>
               </tbody>

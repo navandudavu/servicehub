@@ -31,9 +31,6 @@ server:
     include-stacktrace: never
 
 nalog:
-  pricing:
-    vat-rate: 0.2000                        # Serbian standard VAT 20%
-    labor-rate-per-hour: 2500.00            # RSD, net of VAT
   security:
     # Signs and verifies the login tokens (HS256). Must be >= 32 bytes. No default: startup fails if missing/short.
     # Changing it logs everybody out.
@@ -48,12 +45,10 @@ nalog:
     enabled: ${NALOG_PUSH_ENABLED:true}
     credentials: ${NALOG_FIREBASE_CREDENTIALS:/secrets/firebase-service-account.json}
   reminder:
-    # Evening push to technicians who still have nalozi IN_PROGRESS ("close only if really finished"). Spring cron, local time.
+    # Hourly push to technicians who still have open nalozi ("pick the status"). Spring cron, local time.
     enabled: ${NALOG_REMINDER_ENABLED:true}
-    cron: ${NALOG_REMINDER_CRON:0 0 22 * * MON-SAT}
+    cron: ${NALOG_REMINDER_CRON:0 0 8-19 * * MON-SAT}
     zone: ${NALOG_REMINDER_ZONE:Europe/Belgrade}
-  stale:
-    days: ${NALOG_STALE_DAYS:2}             # open nalog untouched this long = "forgotten" on the admin dashboard
   photos:
     dir: ${NALOG_PHOTOS_DIR:./data/nalog-photos}   # image files; back this folder up together with the database
   cors:

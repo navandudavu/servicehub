@@ -35,7 +35,7 @@ import java.util.UUID;
 public class NalogPhotoService {
 
     private static final Logger log = LoggerFactory.getLogger(NalogPhotoService.class);
-    private static final Set<String> CATEGORIES = Set.of("before", "after", "label", "other");
+    private static final Set<String> CATEGORIES = Set.of("before", "after", "label", "workorder", "other");
     private static final int MAX_PER_NALOG = 40;
 
     private final NalogService nalogService;
@@ -73,7 +73,7 @@ public class NalogPhotoService {
         }
         String cat = category == null || category.isBlank() ? "other" : category.toLowerCase();
         if (!CATEGORIES.contains(cat)) {
-            throw NalogException.invalid("category must be one of before, after, label, other");
+            throw NalogException.invalid("category must be one of before, after, label, workorder, other");
         }
 
         byte[] bytes;

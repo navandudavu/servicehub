@@ -2,7 +2,7 @@ import axios, { AxiosError, AxiosInstance, Method } from 'axios';
 import type {
   ApiProblem, CreateNalogRequest, CustomerDetail, CustomerInput, CustomerView, CreatePartRequest, NalogListQuery, NalogPreview, NalogResponse,
   NalogStatus, NalogSummary, PageResponse, PartResponse, PreviewRequest, StatusHistoryView,
-  StockAdjustRequest, StockMovementView, NoteView, CreateNoteRequest, UpdateNalogRequest, TechnicianView, UpdatePartRequest, PhotoView, PhotoCategory, NalogStats, StaleNalogs, CalendarEntry, ReportSummary, BulkResult, BulkCustomerDelete,
+  StockAdjustRequest, StockMovementView, NoteView, CreateNoteRequest, UpdateNalogRequest, TechnicianView, UpdatePartRequest, PhotoView, PhotoCategory, NalogStats, CalendarEntry, ReportSummary, BulkResult, BulkCustomerDelete,
 } from '../types/nalog';
 
 /** Normalised error: the UI never has to look inside an AxiosError. */
@@ -148,8 +148,6 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized }:
     send<NalogStats>('GET', '/api/nalozi/stats', { safeToRetry: true, signal });
 
   // admin only on the server
-  const getStale = (signal?: AbortSignal) =>
-    send<StaleNalogs>('GET', '/api/nalozi/stale', { safeToRetry: true, signal });
 
   const getCalendar = (fromIso: string, toIso: string, signal?: AbortSignal) =>
     send<CalendarEntry[]>('GET', '/api/nalozi/calendar', { params: { from: fromIso, to: toIso }, safeToRetry: true, signal });
@@ -213,7 +211,7 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized }:
 
   return {
     newIdempotencyKey, submitNalog, updateNalog, deleteNalog, previewNalog, listNalozi, getNalog, getNalogHistory, changeStatus,
-    searchCustomers, listCustomers, getCustomer, createCustomer, updateCustomer, deleteCustomer, bulkDeleteNalozi, bulkAssignNalozi, bulkSetPartsActive, bulkDeleteCustomers, assignNalog, listTechnicians, getStats, getStale, getCalendar, setSchedule, getReportSummary, fetchReportCsv, listPhotos, uploadPhoto, deletePhoto, fetchPhotoBlob, listNotes, addNote, deleteNote, searchParts, listStockMovements, createPart, updatePart, adjustStock,
+    searchCustomers, listCustomers, getCustomer, createCustomer, updateCustomer, deleteCustomer, bulkDeleteNalozi, bulkAssignNalozi, bulkSetPartsActive, bulkDeleteCustomers, assignNalog, listTechnicians, getStats, getCalendar, setSchedule, getReportSummary, fetchReportCsv, listPhotos, uploadPhoto, deletePhoto, fetchPhotoBlob, listNotes, addNote, deleteNote, searchParts, listStockMovements, createPart, updatePart, adjustStock,
   };
 }
 

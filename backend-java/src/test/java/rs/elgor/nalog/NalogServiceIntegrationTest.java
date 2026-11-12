@@ -39,7 +39,7 @@ class NalogServiceIntegrationTest extends AbstractIntegrationTest {
         return new CreateNalogRequest(null,
                 new CustomerInput("Petar Petrović", "Cara Lazara 1", "Kruševac", "060 123 456", null, null),
                 new ApplianceInput(ApplianceType.values()[0], "Gorenje", "X1", "SN1"),
-                "Ne hladi", parts, new BigDecimal("1.50"), PaymentType.values()[0], status, null, assignTo);
+                "Ne hladi", parts, new BigDecimal("1.50"), new BigDecimal("8000.00"), PaymentType.values()[0], status, null, assignTo);
     }
 
     private CreateNalogRequest req(List<PartLineInput> parts) { return req(parts, null, null); }
@@ -52,11 +52,9 @@ class NalogServiceIntegrationTest extends AbstractIntegrationTest {
         NalogResponse n = service.create(req(List.of(new PartLineInput(p, 2))), null, admin);
 
         assertEquals(NalogStatus.DRAFT, n.status());
-        assertEquals(new BigDecimal("3750.00"), n.laborTotal());   // 1.5 h * 2500
-        assertEquals(new BigDecimal("2469.10"), n.partsTotal());
-        assertEquals(new BigDecimal("6219.10"), n.subtotal());
-        assertEquals(new BigDecimal("1243.82"), n.vatAmount());
-        assertEquals(new BigDecimal("7462.92"), n.total());
+        assertEquals(new BigDecimal("8000.00"), n.total());        // the typed price; parts (2 x 1234.55) do not change it
+        assertEquals(new BigDecimal("0.00"), n.partsTotal());
+        assertEquals(new BigDecimal("0.00"), n.vatAmount());
         assertEquals(8, stockOf(p));
         assertEquals(1, count("stock_movement"));
         assertEquals(1, count("nalog_status_history"));
@@ -106,13 +104,12 @@ class NalogServiceIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void technicianCanOnlyAssignToSelf() {
-        NalogException e = assertThrows(NalogException.class,
-                () -> service.create(req(List.of(), null, 3L), null, tech2));
-        assertEquals(403, e.getStatus().value());
-
-        NalogResponse mine = service.create(req(List.of()), null, tech2);
-        assertEquals(2L, mine.assignedToId());
+    void technicianCannotCreateANalogAtAll() {
+        assertEquals(403, assertThrows(NalogException.class,
+                () -> service.create(req(List.of(), null, 3L), null, tech2)).getStatus().value());
+        assertEquals(403, assertThrows(NalogException.class,
+                () -> service.create(req(List.of()), null, tech2)).getStatus().value());
+        assertEquals(0, count("nalog"));
     }
 
     @Test
@@ -154,11 +151,29 @@ class NalogServiceIntegrationTest extends AbstractIntegrationTest {
         service.changeStatus(n.id(), NalogStatus.IN_PROGRESS, admin);
         service.changeStatus(n.id(), NalogStatus.AWAITING_PARTS, admin);
         service.changeStatus(n.id(), NalogStatus.IN_PROGRESS, admin);
+        readyToClose(n.id());
         NalogResponse done = service.changeStatus(n.id(), NalogStatus.COMPLETED, admin);
 
         assertEquals(NalogStatus.COMPLETED, done.status());
         assertNotNull(done.completedAt());
         assertEquals(6, service.history(n.id(), admin).size());
+    }
+
+    @Test
+    void closingNeedsAPhotoAndAWorkDescription() {
+        NalogResponse n = service.create(req(List.of()), null, admin);
+        service.changeStatus(n.id(), NalogStatus.DISPATCHED, admin);
+        service.changeStatus(n.id(), NalogStatus.IN_PROGRESS, admin);
+
+        assertEquals(400, assertThrows(NalogException.class,
+                () -> service.changeStatus(n.id(), NalogStatus.COMPLETED, admin)).getStatus().value());
+
+        jdbc.update("UPDATE nalog SET work_done = 'Zamenjen deo' WHERE id = ?", n.id());       // description, still no photo
+        assertEquals(400, assertThrows(NalogException.class,
+                () -> service.changeStatus(n.id(), NalogStatus.COMPLETED, admin)).getStatus().value());
+
+        readyToClose(n.id());
+        assertEquals(NalogStatus.COMPLETED, service.changeStatus(n.id(), NalogStatus.COMPLETED, admin).status());
     }
 
     @Test
@@ -175,7 +190,7 @@ class NalogServiceIntegrationTest extends AbstractIntegrationTest {
     @Test
     void cancelRestoresStockOnceAndOnlyAdminMayCancel() {
         long p = insertPart("A-1", "100.00", 10);
-        NalogResponse n = service.create(req(List.of(new PartLineInput(p, 4))), null, tech2);
+        NalogResponse n = service.create(req(List.of(new PartLineInput(p, 4)), null, 2L), null, admin);
         assertEquals(6, stockOf(p));
 
         NalogException e = assertThrows(NalogException.class,

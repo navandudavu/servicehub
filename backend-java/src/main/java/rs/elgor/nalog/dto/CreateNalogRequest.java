@@ -33,6 +33,9 @@ public record CreateNalogRequest(
         @NotNull @DecimalMin("0.00") @DecimalMax("999.99") @Digits(integer = 3, fraction = 2)
         BigDecimal laborHours,
 
+        // The price is typed in by hand (net total, no VAT, no calculation). Optional: blank means 0.00.
+        @DecimalMin("0.00") @Digits(integer = 8, fraction = 2) BigDecimal price,
+
         @NotNull PaymentType paymentType,
 
         // Optional. Only DRAFT (default) or DISPATCHED are legal on creation.

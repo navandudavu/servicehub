@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { nalogApi } from '../api/nalog';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../i18n/LangContext';
 import { usePolling } from '../hooks/usePolling';
 import Spinner from '../components/Spinner';
-import { NalogStatusTag } from '../components/NalogStatusTag';
 
 const STATUS_ORDER = ['DRAFT', 'DISPATCHED', 'IN_PROGRESS', 'AWAITING_PARTS', 'COMPLETED', 'CANCELLED'];
 
@@ -15,23 +13,18 @@ export default function Dashboard() {
   const { t } = useLang();
   const [stats, setStats] = useState(null);
   const [error, setError] = useState('');
-  const [stale, setStale] = useState(null);
 
   useEffect(() => {
     const ctrl = new AbortController();
     nalogApi.getStats(ctrl.signal)
       .then(setStats)
       .catch((err) => { if (err.message !== 'Request cancelled') setError(err.message); });
-    if (user.role === 'admin') {
-      nalogApi.getStale(ctrl.signal).then(setStale).catch(() => {});   // a failing side card must not break the dashboard
-    }
     return () => ctrl.abort();
   }, []);
 
   // Background refresh of the numbers, so the dashboard stays current without F5.
   usePolling(async () => {
     setStats(await nalogApi.getStats());
-    if (user.role === 'admin') setStale(await nalogApi.getStale());
   }, 30000, !!stats);
 
   if (error) {
@@ -59,34 +52,6 @@ export default function Dashboard() {
         <StatCard label={t('dashboard_awaitingParts')} value={stats.awaitingParts} accent={stats.awaitingParts > 0 ? 'var(--orange)' : undefined} />
         <StatCard label={t('dashboard_finishedWeek')} value={stats.completedThisWeek} accent="var(--green)" />
       </div>
-
-      {isAdmin && stale && (
-        <div className="card" style={{ padding: 18, marginBottom: 20 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: stale.total > 0 ? 'var(--orange)' : 'var(--stone)', marginBottom: 14 }}>
-            {t('dashboard_stale', stale.days)}{stale.total > 0 ? ` · ${stale.total}` : ''}
-          </div>
-          {stale.items.length === 0 ? (
-            <div style={{ fontSize: 13, color: 'var(--stone)' }}>{t('dashboard_staleNone')}</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {stale.items.map((n) => (
-                <Link key={n.id} to={`/nalozi/${n.id}`} className="card"
-                  style={{ padding: '10px 14px', display: 'flex', gap: 12, alignItems: 'center', textDecoration: 'none', color: 'inherit' }}>
-                  <span style={{ fontFamily: 'var(--mono)', fontSize: 12.5 }}>{n.nalogNumber}</span>
-                  <span style={{ flex: 1, fontSize: 13 }}>
-                    {n.customerName} · {n.technicianName || t('nalogForm_unassigned')}
-                  </span>
-                  <NalogStatusTag status={n.status} />
-                  <span style={{ fontSize: 12.5, color: 'var(--orange)', minWidth: 64, textAlign: 'right' }}>{t('dashboard_staleIdle', n.idleDays)}</span>
-                </Link>
-              ))}
-              {stale.total > stale.items.length && (
-                <div style={{ fontSize: 12.5, color: 'var(--stone)' }}>{t('dashboard_staleMore', stale.total - stale.items.length)}</div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: isAdmin ? '1fr 1fr' : '1fr', gap: 20, marginBottom: 20 }}>
         <div className="card" style={{ padding: 18 }}>

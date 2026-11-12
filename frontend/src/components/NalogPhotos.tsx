@@ -126,7 +126,7 @@ export function NalogPhotos(props: {
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <select className="input" style={{ height: 28, padding: '0 6px', fontSize: 12 }} value={category}
                     onChange={(e) => setCategory(e.target.value as PhotoCategory)} disabled={uploading}>
-              {(['before', 'after', 'label', 'other'] as PhotoCategory[]).map((c) => (
+              {(['before', 'after', 'label', 'workorder', 'other'] as PhotoCategory[]).map((c) => (
                 <option key={c} value={c}>{t(`jobModal_photoCategory_${c}`)}</option>
               ))}
             </select>

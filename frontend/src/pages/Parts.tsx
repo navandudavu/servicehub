@@ -184,14 +184,14 @@ function PartFormModal({ part, onClose, onSaved }: { part: PartResponse | null; 
     const unitPrice = normalizePrice(price);
     if (creating && (!sku.trim() || sku.trim().length > 60)) return setError(t('parts_err_sku'));
     if (!name.trim() || name.trim().length > 200) return setError(t('parts_err_name'));
-    if (!PRICE_RE.test(unitPrice)) return setError(t('parts_err_price'));
+    if (unitPrice && !PRICE_RE.test(unitPrice)) return setError(t('parts_err_price'));
     if (creating && !/^\d{1,7}$/.test(stock.trim())) return setError(t('parts_err_stock'));
     const initial = creating ? Number(stock.trim()) : 0;
     if (initial > 1_000_000) return setError(t('parts_err_stock'));
     setBusy(true); setError('');
     try {
-      if (creating) await nalogApi.createPart({ sku: sku.trim(), name: name.trim(), unitPrice, stockQty: initial });
-      else await nalogApi.updatePart(part.id, { name: name.trim(), unitPrice, active });
+      if (creating) await nalogApi.createPart({ sku: sku.trim(), name: name.trim(), unitPrice: unitPrice || null, stockQty: initial });
+      else await nalogApi.updatePart(part.id, { name: name.trim(), unitPrice: unitPrice || null, active });
       onSaved();
     } catch (err) {
       setError(errText(err, t('nalogForm_unexpected')));
@@ -213,7 +213,7 @@ function PartFormModal({ part, onClose, onSaved }: { part: PartResponse | null; 
         </div>
         <div className="field">
           <label>{t('parts_price')}</label>
-          <input className="input" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} />
+          <input className="input" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0.00" />
           {!creating && <div style={{ fontSize: 11.5, color: 'var(--stone)', marginTop: 4 }}>{t('parts_priceNote')}</div>}
         </div>
         {creating ? (

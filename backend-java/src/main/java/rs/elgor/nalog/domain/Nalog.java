@@ -48,6 +48,9 @@ public class Nalog {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String diagnosis;
 
+    @Column(name = "work_done", columnDefinition = "TEXT")
+    private String workDone;
+
     @Column(name = "labor_hours", nullable = false, precision = 6, scale = 2)
     private BigDecimal laborHours;
 

@@ -39,7 +39,7 @@ Mogu svi nalozi osim **završenih**.
 
 - **Izmena** (dugme *Izmeni* na stranici naloga; administrator bilo koji, serviser samo svoj): klijent, uređaj, dijagnoza, delovi, sati, plaćanje. Status, planirani dolazak i dodela imaju svoja dugmad. Otkazani nalog se ne menja (delovi su mu već vraćeni).
   - U magacinu se pomera samo **razlika** (sa 2 na 5 komada uzima još 3; uklanjanje dela ga vraća), svako pomeranje ide u istoriju dela.
-  - Cene: delovi koji su već na nalogu zadržavaju svoju cenu, cena rada i PDV ostaju oni iz trenutka kreiranja; samo novododati deo ide po današnjoj ceni. Prikaz cene u formularu dolazi sa servera i isti je kao pri čuvanju.
+  - Cena naloga se upisuje **ručno** (jedan iznos, bez satnice, PDV-a i zbira delova). Delovi na nalogu služe samo za stanje magacina. Ako se pri izmeni cena ne pošalje, nalog zadržava svoju cenu.
   - Ako je neko drugi u međuvremenu izmenio nalog, čuvanje daje 409 („učitajte ponovo“) umesto da pregazi njegov rad.
   - Izmena podataka o klijentu pravi **ispravljeni zapis klijenta samo za taj nalog**; stari nalozi zadržavaju originalne podatke (zato ostaje duplikat u listi klijenata).
 - **Brisanje** (dugme *Obriši*, samo administrator, uz potvrdu): delovi se vraćaju na stanje (otkazani nalog ih je već vratio), brišu se fotografije (fajlovi tek nakon uspešnog brisanja), beleške i istorija. Ostaje zapis ko je šta i kada obrisao (`nalog_deleted_log`).
@@ -57,10 +57,14 @@ Mogu svi nalozi osim **završenih**.
 
 Lista sa pretragom i prikazom ukinutih delova, novi deo, izmena (naziv, cena, aktivan), korekcija stanja sa napomenom i **istorija stanja** (ko je, kada i zašto promenio: početno stanje, ručna korekcija, utrošeno na nalogu, nalog otkazan / izmenjen / obrisan). Promena cene važi samo za nove naloge. Ukinut deo se ne može dodati na novi nalog. Serviseri pretražuju delove samo kroz formular naloga.
 
-### Podsetnik i zaboravljeni nalozi
+### Podsetnik za status
 
-- Svako veče u **22:00, ponedeljak–subota** (vreme Beograda) server šalje push svakom aktivnom serviseru koji još ima naloge u statusu *U toku*: „Imate otvorenih naloga: N. Zatvorite nalog samo ako je posao zaista završen.“ Podsetnik samo podseća, ništa ne menja (završen nalog se zaključava). Vreme se menja u `.env` (`REMINDER_CRON`, Spring cron), a gasi se sa `REMINDER_ENABLED=false`.
-- Na tabli (samo administrator) kartica **Zaboravljeni nalozi**: nalozi u statusu *Dodeljen* ili *U toku* bez ikakve promene više od `STALE_DAYS` dana (podrazumevano 2). *Čeka delove* i *Nacrt* se ne računaju. API: `GET /api/nalozi/stale` (admin).
+- **Svakog punog sata od 08:00 do 19:00, ponedeljak–subota** (vreme Beograda) server šalje push svakom aktivnom serviseru koji ima otvorene naloge (*Dodeljen*, *U toku*, *Čeka delove*): „Imate otvorenih naloga: N. Izaberite trenutni status svakog naloga.“ Podsetnik samo podseća, ništa ne menja. Vreme se menja u `.env` (`REMINDER_CRON`, Spring cron; ako je `.env` ranije kopiran sa starom vrednošću `0 0 22 * * MON-SAT`, promenite i tamo), a gasi se sa `REMINDER_ENABLED=false`.
+- Automatskog zatvaranja nema, a kartica „Zaboravljeni nalozi“ je uklonjena.
+
+### Zatvaranje naloga
+
+Nalog se ne može zatvoriti (*Završen*) bez bar jedne fotografije i bez opisa **izvršenih radova**; server odbija zatvaranje sa porukom. Fotografije imaju kategorije *Pre*, *Posle*, *Nalepnica / SN*, *Radni nalog* i *Ostalo*. Naloge pravi samo administrator (serviseri rade nalog koji im je dodeljen). Delove na zatvorenom nalogu može da menja samo administrator.
 
 ### Pregled, kalendar, izveštaji
 
@@ -97,7 +101,7 @@ Kontrolna tabla i Kalendar čitaju naloge; administrator zakazuje planirani dola
 | POST | `/api/nalozi` | svi (serviser: automatski dodeljen sebi) |
 | PUT | `/api/nalozi/{id}` | admin / vlasnik naloga; ne za završene i otkazane |
 | DELETE | `/api/nalozi/{id}` | admin; ne za završene |
-| POST | `/api/nalozi/preview` | svi – cena bez čuvanja (`nalogId` = cena pri izmeni) |
+| POST | `/api/nalozi/preview` | svi – provera zaliha bez čuvanja (`nalogId` = izmena) |
 | GET | `/api/nalozi`, `/{id}`, `/{id}/history` | svi (po pravilu pristupa) |
 | PATCH | `/api/nalozi/{id}/status` | svi (otkazivanje: admin) |
 | PATCH | `/api/nalozi/{id}/assign`, `/{id}/schedule` | admin |
@@ -194,7 +198,7 @@ Nova instalacija ovo ne traži.
 ## Šta još nedostaje
 
 - **Pravi izgled radnog naloga za štampu** (sada je probni) i **podaci firme** (PIB, MB, telefon, račun) u `frontend/src/print/company.ts`.
-- **Prava cena rada i PDV** – sada probno 2500 RSD/h i 20 % u `backend-java/src/main/resources/application.yml`.
+- ~~Prava cena rada i PDV~~ – ukinuto: cena se upisuje ručno na svakom nalogu. Stari nalozi zadržavaju svoj raniji obračun.
 - Android aplikacija (repo `elgor_technician`, grana `main`) ima beleške i brisanje naloga, ali ne i izmenu (ona je samo na vebu). Kompajlira se u Android Studiju.
 - Postavljanje na server: skripte i uputstvo su u `deploy/` (`DEPLOY.md`: Docker + Caddy, HTTPS ili Cloudflare Tunnel, noćni backup baze **i** fotografija, restore, UPS/NUT). Docker build prolazi, ali **pun restore i prelazak sa Node servera još nisu isprobani na pravom serveru**, pa ih treba proveriti ručno.
 - Moguće kasnije: istorija opreme po serijskom broju, dodatni izveštaji (prosečna vrednost naloga, najčešće popravljani uređaji), pretraga po datumu i klijentu. Rezervacija delova, particionisanje baze i slično nisu potrebni za ovu veličinu firme.

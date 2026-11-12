@@ -56,6 +56,7 @@ export interface CreateNalogRequest {
   diagnosis: string;
   partLines: PartLineInput[];
   laborHours: DecimalString; // "1.50", max 2 decimals
+  price?: DecimalString | null; // typed by hand, net total; blank = 0.00 (on edit: unchanged)
   paymentType: PaymentType;
   status?: Extract<NalogStatus, 'DRAFT' | 'DISPATCHED'> | null;
   scheduledAt?: string | null; // ISO-8601 instant, UTC
@@ -115,6 +116,7 @@ export interface NalogResponse {
   customer: CustomerView;
   appliance: ApplianceView;
   diagnosis: string;
+  workDone: string | null;
   laborHours: DecimalString;
   laborRate: DecimalString;
   laborTotal: DecimalString;
@@ -197,6 +199,7 @@ export interface StatusHistoryView {
 export interface PreviewRequest {
   partLines: PartLineInput[];
   laborHours: DecimalString;
+  price?: DecimalString | null;
   /** When editing: price against this nalog (its own rates and the part prices it already holds). */
   nalogId?: number | null;
 }
@@ -240,13 +243,13 @@ export interface StockMovementView {
 export interface CreatePartRequest {
   sku: string;
   name: string;
-  unitPrice: DecimalString;
+  unitPrice?: DecimalString | null;
   stockQty: number;
 }
 
 export interface UpdatePartRequest {
   name: string;
-  unitPrice: DecimalString;
+  unitPrice?: DecimalString | null;
   active: boolean;
 }
 
@@ -277,8 +280,10 @@ export interface UpdateNalogRequest {
   newCustomer?: CustomerInput | null;
   appliance: ApplianceInput;
   diagnosis: string;
+  workDone?: string | null;
   partLines: PartLineInput[];
   laborHours: DecimalString;
+  price?: DecimalString | null;
   paymentType: PaymentType;
   expectedVersion: number;
 }
@@ -297,7 +302,7 @@ export interface TechnicianView {
   name: string;
 }
 
-export type PhotoCategory = 'before' | 'after' | 'label' | 'other';
+export type PhotoCategory = 'before' | 'after' | 'label' | 'workorder' | 'other';
 
 /** Mirrors PhotoView.java. Metadata only; the image bytes are fetched with the auth header (see nalogApi.fetchPhotoBlob). */
 export interface PhotoView {
@@ -336,21 +341,6 @@ export interface NalogStats {
   byStatus: Array<{ status: NalogStatus; count: number }>;
   openByTechnician: Array<{ name: string; count: number }>;
   hoursByTechnician: Array<{ name: string; totalHours: string; hoursThisWeek: string }>;
-}
-
-/** Mirrors StaleNalogs.java (GET /api/nalozi/stale, admin only). */
-export interface StaleNalogs {
-  days: number;
-  total: number;
-  items: Array<{
-    id: number;
-    nalogNumber: string;
-    status: NalogStatus;
-    customerName: string;
-    technicianName: string | null;
-    lastUpdate: string;
-    idleDays: number;
-  }>;
 }
 
 /** Mirrors CalendarEntry.java (GET /api/nalozi/calendar). */

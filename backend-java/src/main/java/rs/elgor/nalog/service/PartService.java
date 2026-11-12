@@ -43,7 +43,7 @@ public class PartService {
         Part p = new Part();
         p.setSku(sku);
         p.setName(req.name().trim());
-        p.setUnitPrice(req.unitPrice().setScale(2, java.math.RoundingMode.HALF_UP));
+        p.setUnitPrice((req.unitPrice() == null ? java.math.BigDecimal.ZERO : req.unitPrice()).setScale(2, java.math.RoundingMode.HALF_UP));
         p.setStockQty(req.stockQty());
         p = partRepository.saveAndFlush(p);
         if (req.stockQty() > 0) {
@@ -59,7 +59,9 @@ public class PartService {
     public PartResponse update(Long id, UpdatePartRequest req) {
         Part p = partRepository.findById(id).orElseThrow(() -> NalogException.notFound("Part " + id + " not found"));
         p.setName(req.name().trim());
-        p.setUnitPrice(req.unitPrice().setScale(2, java.math.RoundingMode.HALF_UP));
+        if (req.unitPrice() != null) {
+            p.setUnitPrice(req.unitPrice().setScale(2, java.math.RoundingMode.HALF_UP));
+        }
         p.setActive(req.active());
         return PartResponse.from(partRepository.saveAndFlush(p));
     }

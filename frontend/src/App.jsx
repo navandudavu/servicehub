@@ -39,7 +39,7 @@ export default function App() {
         <RequireAuth><Layout><NalozList /></Layout></RequireAuth>
       } />
       <Route path="/nalozi/new" element={
-        <RequireAuth><Layout><NalogNew /></Layout></RequireAuth>
+        <RequireAuth><RequireAdmin><Layout><NalogNew /></Layout></RequireAdmin></RequireAuth>
       } />
       <Route path="/nalozi/:id" element={
         <RequireAuth><Layout><NalogDetail /></Layout></RequireAuth>

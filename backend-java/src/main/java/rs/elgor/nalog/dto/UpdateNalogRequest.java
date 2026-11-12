@@ -27,10 +27,16 @@ public record UpdateNalogRequest(
 
         @NotBlank @Size(max = 4000) String diagnosis,
 
+        // "Izvrseni radovi". Optional while the nalog is open, required to close it.
+        @Size(max = 4000) String workDone,
+
         @Valid @Size(max = 50) List<CreateNalogRequest.PartLineInput> partLines,
 
         @NotNull @DecimalMin("0.00") @DecimalMax("999.99") @Digits(integer = 3, fraction = 2)
         BigDecimal laborHours,
+
+        // Hand-typed price. Optional: when omitted the nalog keeps the price it has.
+        @DecimalMin("0.00") @Digits(integer = 8, fraction = 2) BigDecimal price,
 
         @NotNull PaymentType paymentType,
 
