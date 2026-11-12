@@ -31,7 +31,7 @@ import java.util.List;
 public class NalogStatsService {
 
     private static final ZoneId ZONE = ZoneId.of("Europe/Belgrade");
-    private static final String OPEN = "('DRAFT','DISPATCHED','IN_PROGRESS','AWAITING_PARTS')";
+    private static final String OPEN = "('DRAFT','DISPATCHED','IN_PROGRESS','AWAITING_PARTS','RECEIVED','TESTING','DRIVING','NEEDS_ELECTRICIAN')";
     // :admin = true -> the whole clause is true. No NULL parameters anywhere (untyped nulls are a classic JDBC trap).
     private static final String SCOPE = "(:admin OR n.assigned_to_id = :uid OR n.created_by_id = :uid)";
 
@@ -136,7 +136,7 @@ public class NalogStatsService {
     }
 
     private static boolean isOpen(String s) {
-        return s.equals("DRAFT") || s.equals("DISPATCHED") || s.equals("IN_PROGRESS") || s.equals("AWAITING_PARTS");
+        return !s.equals("COMPLETED") && !s.equals("CANCELLED");
     }
 
     private static BigDecimal dec(Object o) {

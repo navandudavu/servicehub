@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Hourly reminder to technicians who still have open nalozi (DISPATCHED, IN_PROGRESS, AWAITING_PARTS): "pick the status".
+ * Hourly reminder to technicians who still have open nalozi (every status except DRAFT, COMPLETED, CANCELLED): "pick the status".
  *
  * It only reminds. It never changes a nalog, because COMPLETED locks the nalog and fixes its hours, parts and price.
  * Time and days come from nalog.reminder.cron / nalog.reminder.zone (default every hour 08:00-19:00, Monday to Saturday, Belgrade time).
@@ -50,7 +50,7 @@ public class NalogReminderService {
     public int sendReminders() {
         List<long[]> rows = jdbc.query(
                 "SELECT n.assigned_to_id, count(*) FROM nalog n JOIN app_user u ON u.id = n.assigned_to_id "
-              + "WHERE n.status IN ('DISPATCHED', 'IN_PROGRESS', 'AWAITING_PARTS') AND u.role = 'technician' AND u.active "
+              + "WHERE n.status NOT IN ('DRAFT', 'COMPLETED', 'CANCELLED') AND u.role = 'technician' AND u.active "
               + "GROUP BY n.assigned_to_id",
                 (rs, i) -> new long[]{rs.getLong(1), rs.getLong(2)});
         for (long[] r : rows) {

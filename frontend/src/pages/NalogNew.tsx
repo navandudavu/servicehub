@@ -2,6 +2,8 @@ import { useNavigate } from 'react-router-dom';
 import { NalogForm } from '../components/NalogForm';
 import { useCurrentUser } from '../context/typedAuth';
 import { useLang } from '../i18n/typedLang';
+import { isAdminLevel } from '../context/roles';
+
 
 export default function NalogNew() {
   const { t } = useLang();
@@ -11,7 +13,7 @@ export default function NalogNew() {
   return (
     <div>
       <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 20px' }}>{t('nalogForm_title')}</h1>
-      <NalogForm isAdmin={user?.role === 'admin'} onCreated={(n) => navigate(`/nalozi/${n.id}`)} />
+      <NalogForm isAdmin={isAdminLevel(user?.role)} onCreated={(n) => navigate(`/nalozi/${n.id}`)} />
     </div>
   );
 }

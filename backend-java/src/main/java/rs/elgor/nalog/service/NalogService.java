@@ -292,7 +292,8 @@ public class NalogService {
     // ========================================================================
 
     private static final Set<NalogStatus> EDITABLE =
-            EnumSet.of(NalogStatus.DRAFT, NalogStatus.DISPATCHED, NalogStatus.IN_PROGRESS, NalogStatus.AWAITING_PARTS);
+            EnumSet.of(NalogStatus.DRAFT, NalogStatus.DISPATCHED, NalogStatus.IN_PROGRESS, NalogStatus.AWAITING_PARTS,
+                       NalogStatus.RECEIVED, NalogStatus.TESTING, NalogStatus.DRIVING, NalogStatus.NEEDS_ELECTRICIAN);
 
     /**
      * One transaction, like create: the nalog row is locked, stock is reconciled part by part (only the DIFFERENCE

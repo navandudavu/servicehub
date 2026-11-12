@@ -31,7 +31,7 @@ public class UserAdminService {
 
     public static final int MIN_PASSWORD = 8;
     static final int MAX_PASSWORD_BYTES = 72;                  // BCrypt ignores (or rejects) anything longer
-    private static final Set<String> ROLES = Set.of("admin", "technician");
+    private static final Set<String> ROLES = Set.of("admin", "manager", "technician");
     private static final String PASSWORD_ALPHABET = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
     private final AppUserRepository users;
@@ -77,7 +77,7 @@ public class UserAdminService {
     /** Admin: anyone. Anybody else: only themselves, and they cannot change their own role. */
     @Transactional(rollbackFor = Exception.class)
     public UserView update(long id, UpdateUserRequest r, AuthUser actor) {
-        if (!actor.isAdmin() && actor.id() != id) {
+        if (!actor.isOwner() && actor.id() != id) {
             throw NalogException.forbidden("Permission denied");
         }
         AppUser u = load(id);
@@ -98,7 +98,7 @@ public class UserAdminService {
         if (r.phone() != null) {
             u.setPhone(blankToNull(r.phone(), 40));
         }
-        if (r.role() != null && actor.isAdmin() && !r.role().equalsIgnoreCase(u.getRole())) {
+        if (r.role() != null && actor.isOwner() && !r.role().equalsIgnoreCase(u.getRole())) {
             String role = requireRole(r.role());
             if ("admin".equals(u.getRole()) && u.isActive() && users.countByRoleAndActiveTrue("admin") <= 1) {
                 throw NalogException.conflict("Cannot change the role of the last active admin.");
@@ -244,7 +244,7 @@ public class UserAdminService {
 
     private static String requireRole(String role) {
         if (role == null || !ROLES.contains(role.trim().toLowerCase())) {
-            throw NalogException.invalid("role must be admin or technician");
+            throw NalogException.invalid("role must be admin, manager or technician");
         }
         return role.trim().toLowerCase();
     }

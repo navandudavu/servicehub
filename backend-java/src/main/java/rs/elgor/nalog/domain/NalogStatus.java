@@ -6,6 +6,10 @@ public enum NalogStatus {
     DISPATCHED,
     IN_PROGRESS,
     AWAITING_PARTS,
+    RECEIVED,            // Preuzet u servis (a revers is printed)
+    TESTING,             // Testira se
+    DRIVING,             // Vozi se
+    NEEDS_ELECTRICIAN,   // Potreban elektronicar
     COMPLETED,
     CANCELLED
 }

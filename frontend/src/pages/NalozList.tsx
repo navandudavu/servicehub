@@ -14,6 +14,8 @@ import { usePolling } from '../hooks/usePolling';
 import { useSelection } from '../hooks/useSelection';
 import { formatMoney } from '../print/formatMoney';
 import { NALOG_STATUSES, type NalogStatus, type NalogSummary, type PageResponse, type TechnicianView } from '../types/nalog';
+import { isAdminLevel } from '../context/roles';
+
 
 const PAGE_SIZE = 20;
 const BASE_COLS = '120px 1.4fr 1.2fr 130px 1fr 120px';
@@ -23,7 +25,7 @@ export default function NalozList() {
   const locale = lang === 'sr' ? 'sr-Latn-RS' : 'en-GB';
   const user = useCurrentUser();
   const navigate = useNavigate();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = isAdminLevel(user?.role);
 
   const [status, setStatus] = useState<NalogStatus | ''>('');
   const [query, setQuery] = useState('');

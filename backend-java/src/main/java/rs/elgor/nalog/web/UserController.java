@@ -33,7 +33,7 @@ public class UserController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('OWNER')")
     public ResponseEntity<UserView> create(@RequestBody CreateUserRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(users.create(request));
     }
@@ -45,14 +45,14 @@ public class UserController {
     }
 
     @PatchMapping("/{id}/active")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('OWNER')")
     public Map<String, Boolean> setActive(@PathVariable long id, @RequestBody ActiveRequest request) {
         users.setActive(id, request.active());
         return Map.of("ok", true);
     }
 
     @PatchMapping("/{id}/reset-password")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('OWNER')")
     public Map<String, Boolean> resetPassword(@PathVariable long id, @RequestBody ResetPasswordRequest request) {
         users.resetPassword(id, request.newPassword());
         return Map.of("ok", true);
@@ -66,7 +66,7 @@ public class UserController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('OWNER')")
     public Map<String, Boolean> delete(@PathVariable long id, @AuthenticationPrincipal Jwt jwt) {
         users.delete(id, directory.resolve(jwt));
         return Map.of("ok", true);
