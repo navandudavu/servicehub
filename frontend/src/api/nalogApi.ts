@@ -1,6 +1,6 @@
 import axios, { AxiosError, AxiosInstance, Method } from 'axios';
 import type {
-  ApiProblem, CreateNalogRequest, CustomerDetail, CustomerInput, CustomerView, CreatePartRequest, NalogListQuery, NalogPreview, NalogResponse,
+  ApiProblem, CarriedRequest, CarriedView, CreateNalogRequest, CustomerDetail, CustomerInput, CustomerView, CreatePartRequest, NalogListQuery, NalogPreview, NalogResponse,
   NalogStatus, NalogSummary, PageResponse, PartResponse, PreviewRequest, StatusHistoryView,
   StockAdjustRequest, StockMovementView, NoteView, CreateNoteRequest, UpdateNalogRequest, TechnicianView, UpdatePartRequest, PhotoView, PhotoCategory, NalogStats, CalendarEntry, ReportSummary, BulkResult, BulkCustomerDelete,
 } from '../types/nalog';
@@ -209,9 +209,19 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized }:
   const adjustStock = (id: number, req: StockAdjustRequest) =>
     send<PartResponse>('POST', `/api/parts/${id}/stock`, { data: req, safeToRetry: false });
 
+  // ---- zaduzivanje (what a technician carries) ----
+  const listCarried = (technicianId?: number, signal?: AbortSignal) =>
+    send<CarriedView[]>('GET', '/api/carried', { params: technicianId == null ? {} : { technicianId }, safeToRetry: true, signal });
+  const addCarried = (req: CarriedRequest) =>
+    send<CarriedView>('POST', '/api/carried', { data: req, safeToRetry: false });
+  const updateCarried = (id: number, req: CarriedRequest) =>
+    send<CarriedView>('PUT', `/api/carried/${id}`, { data: req, safeToRetry: true });
+  const deleteCarried = (id: number) =>
+    send<{ ok: boolean }>('DELETE', `/api/carried/${id}`, { safeToRetry: false });
+
   return {
     newIdempotencyKey, submitNalog, updateNalog, deleteNalog, previewNalog, listNalozi, getNalog, getNalogHistory, changeStatus,
-    searchCustomers, listCustomers, getCustomer, createCustomer, updateCustomer, deleteCustomer, bulkDeleteNalozi, bulkAssignNalozi, bulkSetPartsActive, bulkDeleteCustomers, assignNalog, listTechnicians, getStats, getCalendar, setSchedule, getReportSummary, fetchReportCsv, listPhotos, uploadPhoto, deletePhoto, fetchPhotoBlob, listNotes, addNote, deleteNote, searchParts, listStockMovements, createPart, updatePart, adjustStock,
+    searchCustomers, listCustomers, getCustomer, createCustomer, updateCustomer, deleteCustomer, bulkDeleteNalozi, bulkAssignNalozi, bulkSetPartsActive, bulkDeleteCustomers, assignNalog, listTechnicians, getStats, getCalendar, setSchedule, getReportSummary, fetchReportCsv, listPhotos, uploadPhoto, deletePhoto, fetchPhotoBlob, listNotes, addNote, deleteNote, searchParts, listStockMovements, createPart, updatePart, adjustStock, listCarried, addCarried, updateCarried, deleteCarried,
   };
 }
 
