@@ -81,7 +81,7 @@ export default function Team() {
                 <tr key={u.id} style={{ borderBottom: '1px solid var(--border)' }}>
                   <Td><strong>{u.name}</strong></Td>
                   <Td>{u.email}</Td>
-                  <Td style={{ textTransform: 'capitalize' }}>{u.role === 'admin' ? t('team_admin') : t('team_technician')}</Td>
+                  <Td style={{ textTransform: 'capitalize' }}>{u.role === 'admin' ? t('team_admin') : u.role === 'manager' ? t('team_manager') : t('team_technician')}</Td>
                   <Td>
                     <span className="tag" style={{ color: u.active ? 'var(--green-dark)' : 'var(--danger)' }}>
                       {u.active ? t('team_active') : t('team_inactive')}
@@ -235,6 +235,7 @@ function NewUserModal({ onClose, onCreated }) {
           <label>{t('team_role')}</label>
           <select className="input" value={role} onChange={(e) => setRole(e.target.value)}>
             <option value="technician">{t('team_technician')}</option>
+            <option value="manager">{t('team_manager')}</option>
             <option value="admin">{t('team_admin')}</option>
           </select>
         </div>
@@ -298,6 +299,7 @@ function EditUserModal({ user, onClose, onUpdated }) {
             <label>{t('team_role')}</label>
             <select className="input" value={role} onChange={(e) => setRole(e.target.value)}>
               <option value="technician">{t('team_technician')}</option>
+              <option value="manager">{t('team_manager')}</option>
               <option value="admin">{t('team_admin')}</option>
             </select>
           </div>

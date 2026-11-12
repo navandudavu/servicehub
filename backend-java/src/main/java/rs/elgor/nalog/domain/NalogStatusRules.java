@@ -11,22 +11,32 @@ import static rs.elgor.nalog.domain.NalogStatus.*;
  * The state machine. One table, one place. COMPLETED and CANCELLED are terminal:
  * a finished nalog is an accounting document and is never silently reopened.
  *
- *   DRAFT -> DISPATCHED -> IN_PROGRESS <-> AWAITING_PARTS
- *                              |
- *                              +-> COMPLETED
+ *   DRAFT -> DISPATCHED -> any working status
+ *   working status <-> any other working status      (IN_PROGRESS, AWAITING_PARTS, RECEIVED, TESTING, DRIVING, NEEDS_ELECTRICIAN)
+ *   working status -> COMPLETED
  *   (any non-terminal) -> CANCELLED   (admin only, restores stock)
  */
 public final class NalogStatusRules {
 
+    /** Statuses a technician moves between while the job is going on. */
+    public static final Set<NalogStatus> WORKING = EnumSet.of(IN_PROGRESS, AWAITING_PARTS, RECEIVED, TESTING, DRIVING, NEEDS_ELECTRICIAN);
+
     private static final Map<NalogStatus, Set<NalogStatus>> ALLOWED = new EnumMap<>(NalogStatus.class);
 
     static {
-        ALLOWED.put(DRAFT,          EnumSet.of(DISPATCHED, CANCELLED));
-        ALLOWED.put(DISPATCHED,     EnumSet.of(IN_PROGRESS, CANCELLED));
-        ALLOWED.put(IN_PROGRESS,    EnumSet.of(AWAITING_PARTS, COMPLETED, CANCELLED));
-        ALLOWED.put(AWAITING_PARTS, EnumSet.of(IN_PROGRESS, CANCELLED));
-        ALLOWED.put(COMPLETED,      EnumSet.noneOf(NalogStatus.class));
-        ALLOWED.put(CANCELLED,      EnumSet.noneOf(NalogStatus.class));
+        ALLOWED.put(DRAFT, EnumSet.of(DISPATCHED, CANCELLED));
+        Set<NalogStatus> fromDispatched = EnumSet.copyOf(WORKING);
+        fromDispatched.add(CANCELLED);
+        ALLOWED.put(DISPATCHED, fromDispatched);
+        for (NalogStatus w : WORKING) {
+            Set<NalogStatus> to = EnumSet.copyOf(WORKING);
+            to.remove(w);
+            to.add(COMPLETED);
+            to.add(CANCELLED);
+            ALLOWED.put(w, to);
+        }
+        ALLOWED.put(COMPLETED, EnumSet.noneOf(NalogStatus.class));
+        ALLOWED.put(CANCELLED, EnumSet.noneOf(NalogStatus.class));
     }
 
     private NalogStatusRules() {}

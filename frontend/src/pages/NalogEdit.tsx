@@ -7,6 +7,8 @@ import Spinner from '../components/Spinner';
 import { useCurrentUser } from '../context/typedAuth';
 import { useLang } from '../i18n/typedLang';
 import { EDITABLE_STATUSES, type NalogResponse } from '../types/nalog';
+import { isAdminLevel } from '../context/roles';
+
 
 /** Same form as "new work order", filled from the saved nalog. Finished (and cancelled) ones cannot be edited. */
 export default function NalogEdit() {
@@ -47,7 +49,7 @@ export default function NalogEdit() {
       <h1 style={{ fontSize: 22, fontWeight: 700, margin: '10px 0 20px' }}>
         {t('nalogEdit_title')} <span style={{ fontFamily: 'var(--mono)' }}>{nalog.nalogNumber}</span>
       </h1>
-      <NalogForm isAdmin={user?.role === 'admin'} editing={nalog} onSaved={(n) => navigate(`/nalozi/${n.id}`)} />
+      <NalogForm isAdmin={isAdminLevel(user?.role)} editing={nalog} onSaved={(n) => navigate(`/nalozi/${n.id}`)} />
     </div>
   );
 }

@@ -4,8 +4,10 @@ import { useAuth } from '../context/AuthContext';
 import { useLang } from '../i18n/LangContext';
 import { usePolling } from '../hooks/usePolling';
 import Spinner from '../components/Spinner';
+import { isAdminLevel } from '../context/roles';
 
-const STATUS_ORDER = ['DRAFT', 'DISPATCHED', 'IN_PROGRESS', 'AWAITING_PARTS', 'COMPLETED', 'CANCELLED'];
+
+const STATUS_ORDER = ['DRAFT', 'DISPATCHED', 'IN_PROGRESS', 'AWAITING_PARTS', 'RECEIVED', 'TESTING', 'DRIVING', 'NEEDS_ELECTRICIAN', 'COMPLETED', 'CANCELLED'];
 
 // Numbers come from the nalog service (GET /api/nalozi/stats); this page does no maths except bar widths.
 export default function Dashboard() {
@@ -38,7 +40,7 @@ export default function Dashboard() {
   const maxStatus = Math.max(...STATUS_ORDER.map((s) => statusMap[s] || 0), 1);
   const perTech = stats.openByTechnician || [];
   const hoursByTech = stats.hoursByTechnician || [];
-  const isAdmin = user.role === 'admin';
+  const isAdmin = isAdminLevel(user.role);
 
   return (
     <div>

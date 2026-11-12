@@ -19,7 +19,8 @@ const APPLIANCE_SR: Record<ApplianceType, string> = {
 const PAYMENT_SR: Record<PaymentType, string> = { CASH: 'Gotovina', CARD: 'Kartica', INVOICE: 'Virman / faktura' };
 const STATUS_SR: Record<NalogStatus, string> = {
   DRAFT: 'Nacrt', DISPATCHED: 'Dodeljen', IN_PROGRESS: 'U toku',
-  AWAITING_PARTS: 'Čeka delove', COMPLETED: 'Završen', CANCELLED: 'Otkazan',
+  AWAITING_PARTS: 'Čeka delove', RECEIVED: 'Preuzet u servis', TESTING: 'Testira se', DRIVING: 'Vozi se',
+  NEEDS_ELECTRICIAN: 'Potreban elektroničar', COMPLETED: 'Završen', CANCELLED: 'Otkazan',
 };
 
 const fmtDate = (iso: string) =>
@@ -50,7 +51,7 @@ export const PRINT_CSS = `
   @media print { .no-print { display: none !important; } }
 `;
 
-export function NalogPrint({ nalog, company }: { nalog: NalogResponse; company: CompanyInfo }) {
+export function NalogPrint({ nalog, company, revers = false }: { nalog: NalogResponse; company: CompanyInfo; revers?: boolean }) {
   const c = nalog.customer;
   const a = nalog.appliance;
   return (
@@ -64,12 +65,18 @@ export function NalogPrint({ nalog, company }: { nalog: NalogResponse; company: 
           <div className="muted">PIB {company.pib} · MB {company.mb} · Tekući račun {company.bankAccount}</div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 16, fontWeight: 'bold' }}>RADNI NALOG</div>
+          <div style={{ fontSize: 16, fontWeight: 'bold' }}>{revers ? 'REVERS' : 'RADNI NALOG'}</div>
           <div>Br. {nalog.nalogNumber}</div>
           <div className="muted">Datum: {fmtDate(nalog.createdAt)}{nalog.completedAt ? ` · Završeno: ${fmtDate(nalog.completedAt)}` : ''}</div>
-          <div className="muted">Status: {STATUS_SR[nalog.status]}</div>
+          {!revers && <div className="muted">Status: {STATUS_SR[nalog.status]}</div>}
         </div>
       </div>
+
+      {revers && (
+        <div className="box" style={{ marginBottom: 14, textAlign: 'center', fontSize: 18, fontWeight: 'bold', background: '#FFF100' }}>
+          APARAT PREUZET U SERVIS
+        </div>
+      )}
 
       <div className="grid">
         <div className="box">
@@ -92,6 +99,10 @@ export function NalogPrint({ nalog, company }: { nalog: NalogResponse; company: 
         <div style={{ whiteSpace: 'pre-wrap' }}>{nalog.diagnosis}</div>
       </div>
 
+      {revers ? (
+        <div style={{ marginBottom: 14 }}>Uređaj je preuzet u servis dana {fmtDate(nalog.createdAt)}.</div>
+      ) : (
+        <>
       {nalog.workDone && (
         <div className="box" style={{ marginBottom: 14 }}>
           <h2>Izvršeni radovi</h2>
@@ -128,10 +139,12 @@ export function NalogPrint({ nalog, company }: { nalog: NalogResponse; company: 
         <div>Serviser</div>
         <div>Korisnik (potpis)</div>
       </div>
+        </>
+      )}
 
       <footer>
         {company.warranty && <div style={{ marginBottom: 4 }}>{company.warranty}</div>}
-        Ovaj dokument je radni nalog i nije fiskalni račun.
+        {revers ? 'Ovaj dokument je revers o preuzimanju uređaja u servis.' : 'Ovaj dokument je radni nalog i nije fiskalni račun.'}
       </footer>
     </div>
   );

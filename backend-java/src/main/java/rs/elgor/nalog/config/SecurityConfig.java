@@ -76,15 +76,27 @@ public class SecurityConfig {
                 .build();
     }
 
-    /** role claim "admin" / "technician"  ->  ROLE_ADMIN / ROLE_TECHNICIAN */
+    /**
+     * role claim -> authorities.  admin: ROLE_ADMIN + ROLE_OWNER;  manager: ROLE_MANAGER + ROLE_ADMIN (admin-level, no team
+     * management);  technician: ROLE_TECHNICIAN.
+     */
     @Bean
     JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtAuthenticationConverter c = new JwtAuthenticationConverter();
         c.setJwtGrantedAuthoritiesConverter(jwt -> {
             String role = jwt.getClaimAsString("role");
-            return role == null
-                    ? List.<GrantedAuthority>of()
-                    : List.<GrantedAuthority>of(new SimpleGrantedAuthority("ROLE_" + role.toUpperCase()));
+            if (role == null) {
+                return List.<GrantedAuthority>of();
+            }
+            String r = role.toUpperCase();
+            List<GrantedAuthority> out = new java.util.ArrayList<>();
+            out.add(new SimpleGrantedAuthority("ROLE_" + r));
+            if ("ADMIN".equals(r)) {
+                out.add(new SimpleGrantedAuthority("ROLE_OWNER"));
+            } else if ("MANAGER".equals(r)) {
+                out.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+            }
+            return out;
         });
         return c;
     }

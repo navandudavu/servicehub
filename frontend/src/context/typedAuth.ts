@@ -5,7 +5,7 @@ export interface CurrentUser {
   id: number;
   name: string;
   email: string;
-  role: 'admin' | 'technician';
+  role: 'admin' | 'manager' | 'technician';
 }
 
 export function useCurrentUser(): CurrentUser | null {

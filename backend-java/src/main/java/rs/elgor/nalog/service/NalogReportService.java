@@ -26,7 +26,7 @@ public class NalogReportService {
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("dd.MM.yyyy. HH:mm").withZone(ZONE);
     private static final int MAX_CSV_ROWS = 50_000;
     private static final Set<String> STATUSES =
-            Set.of("DRAFT", "DISPATCHED", "IN_PROGRESS", "AWAITING_PARTS", "COMPLETED", "CANCELLED");
+            Set.of("DRAFT", "DISPATCHED", "IN_PROGRESS", "AWAITING_PARTS", "RECEIVED", "TESTING", "DRIVING", "NEEDS_ELECTRICIAN", "COMPLETED", "CANCELLED");
 
     private static final String SUMS =
             "count(*), coalesce(sum(n.labor_hours),0), coalesce(sum(n.labor_total),0), coalesce(sum(n.parts_total),0), "

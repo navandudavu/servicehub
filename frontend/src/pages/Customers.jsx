@@ -11,11 +11,13 @@ import { BulkBar } from '../components/BulkBar';
 import { SelectBox } from '../components/SelectBox';
 import { useSelection } from '../hooks/useSelection';
 import EmptyState from '../components/EmptyState';
+import { isAdminLevel } from '../context/roles';
+
 
 export default function Customers() {
   const { t } = useLang();
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = isAdminLevel(user?.role);
   const [customers, setCustomers] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -283,7 +285,7 @@ function CustomerDetailModal({ customerId, onClose, onChanged }) {
           {deleteError}
         </div>
       )}
-      {user?.role === 'admin' && (
+      {isAdminLevel(user?.role) && (
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
           <button className="btn-danger-outline btn-sm" onClick={() => setShowDeleteConfirm(true)} disabled={deleteBusy}>
             {t('customers_delete')}

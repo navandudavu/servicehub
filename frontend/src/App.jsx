@@ -14,6 +14,7 @@ import NalogEdit from './pages/NalogEdit';
 import NalogPrintPage from './pages/NalogPrintPage';
 import Reports from './pages/Reports';
 import Parts from './pages/Parts';
+import { isAdminLevel, isOwner } from './context/roles';
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
@@ -24,7 +25,14 @@ function RequireAuth({ children }) {
 
 function RequireAdmin({ children }) {
   const { user } = useAuth();
-  if (user?.role !== 'admin') return <Navigate to="/" replace />;
+  if (!isAdminLevel(user?.role)) return <Navigate to="/" replace />;
+  return children;
+}
+
+// The Tim tab (accounts, roles, passwords) is for admins only; a manager is sent home.
+function RequireOwner({ children }) {
+  const { user } = useAuth();
+  if (!isOwner(user?.role)) return <Navigate to="/" replace />;
   return children;
 }
 
@@ -63,7 +71,7 @@ export default function App() {
         <RequireAuth><RequireAdmin><Layout><Reports /></Layout></RequireAdmin></RequireAuth>
       } />
       <Route path="/team" element={
-        <RequireAuth><RequireAdmin><Layout><Team /></Layout></RequireAdmin></RequireAuth>
+        <RequireAuth><RequireOwner><Layout><Team /></Layout></RequireOwner></RequireAuth>
       } />
     </Routes>
   );

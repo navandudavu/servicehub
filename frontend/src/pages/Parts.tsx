@@ -10,6 +10,8 @@ import { useLang } from '../i18n/typedLang';
 import { useSelection } from '../hooks/useSelection';
 import { formatMoney } from '../print/formatMoney';
 import type { PageResponse, PartResponse, StockMovementView } from '../types/nalog';
+import { isAdminLevel } from '../context/roles';
+
 
 const PAGE_SIZE = 25;
 
@@ -21,7 +23,7 @@ const errText = (e: unknown, fallback: string) => (e instanceof NalogApiError ? 
 
 export default function Parts() {
   const { t } = useLang();
-  const isAdmin = useCurrentUser()?.role === 'admin';
+  const isAdmin = isAdminLevel(useCurrentUser()?.role);
   const [q, setQ] = useState('');
   const [query, setQuery] = useState('');           // debounced copy of q
   const [showInactive, setShowInactive] = useState(false);

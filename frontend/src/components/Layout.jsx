@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLang } from '../i18n/LangContext';
 import { api } from '../api/client';
 import Modal from './Modal';
+import { isAdminLevel, isOwner } from '../context/roles';
 
 export default function Layout({ children }) {
   const { user, logout } = useAuth();
@@ -27,7 +28,9 @@ export default function Layout({ children }) {
     { to: '/reports', label: t('nav_reports') },
     { to: '/team', label: t('nav_team') },
   ];
-  const items = user?.role === 'admin' ? [...navItems, ...adminNavItems] : navItems;
+  const items = isAdminLevel(user?.role)
+    ? [...navItems, ...adminNavItems.filter((i) => i.to !== '/team' || isOwner(user?.role))]
+    : navItems;
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
@@ -94,7 +97,7 @@ export default function Layout({ children }) {
           >
             <div style={{ fontSize: 13, fontWeight: 500 }}>{user?.name}</div>
             <div style={{ fontSize: 12, color: 'var(--stone)', marginBottom: 10, textTransform: 'capitalize' }}>
-              {user?.role === 'admin' ? t('team_admin') : t('team_technician')} · {t('changePassword')}
+              {user?.role === 'admin' ? t('team_admin') : user?.role === 'manager' ? t('team_manager') : t('team_technician')} · {t('changePassword')}
             </div>
           </button>
           <button className="btn-secondary" onClick={handleLogout} style={{

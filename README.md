@@ -188,6 +188,13 @@ Nova instalacija ovo ne traži.
 - Prijava je ograničena na 8 neuspešnih pokušaja po IP adresi i email-u u 15 minuta (i 40 po IP adresi). Lozinke: najmanje 8 znakova, BCrypt.
 - Otkazani nalog ne prima fotografije.
 
+### Uloge
+
+- **Administrator**: sve, uključujući karticu *Tim* (nalozi korisnika, uloge, lozinke).
+- **Menadžer**: sve što i administrator (nalozi, delovi, klijenti, izveštaji, brisanja), osim *Tima*. Server odbija sve `/api/users` radnje za menadžera, a kartica se ne prikazuje.
+- **Serviser**: samo svoji nalozi; ne pravi naloge.
+- Radni statusi servisera: *U toku*, *Čeka delove*, *Preuzet u servis* (za njega se štampa **revers**), *Testira se*, *Vozi se*, *Potreban elektroničar*, pa *Završen*. Između radnih statusa može se prelaziti bilo kojim redom.
+
 ### Sesije i tokeni
 
 - Server pri svakom zahtevu čita korisnika iz baze: deaktivacija, brisanje i promena uloge važe **odmah** (sledeći zahtev dobija 401, a web aplikacija vraća na prijavu).
