@@ -27,12 +27,14 @@ class NalogServiceIntegrationTest extends AbstractIntegrationTest {
     AuthUser admin = new AuthUser(1, "Admin", "admin");
     AuthUser tech2 = new AuthUser(2, "Tehničar Dva", "technician");
     AuthUser tech3 = new AuthUser(3, "Tehničar Tri", "technician");
+    AuthUser manager = new AuthUser(4, "Menadžer", "manager");
 
     @BeforeEach
     void users() {
         insertUser(1, "Admin", "admin");
         insertUser(2, "Tehničar Dva", "technician");
         insertUser(3, "Tehničar Tri", "technician");
+        insertUser(4, "Menadžer", "manager");
     }
 
     private CreateNalogRequest req(List<PartLineInput> parts, NalogStatus status, Long assignTo) {
@@ -157,6 +159,25 @@ class NalogServiceIntegrationTest extends AbstractIntegrationTest {
         assertEquals(NalogStatus.COMPLETED, done.status());
         assertNotNull(done.completedAt());
         assertEquals(6, service.history(n.id(), admin).size());
+    }
+
+    @Test
+    void technicianMovesFreelyBetweenWorkingStatusesAndCanCloseFromAny() {
+        NalogResponse n = service.create(req(List.of(), NalogStatus.DISPATCHED, 2L), null, admin);
+        for (NalogStatus s : List.of(NalogStatus.RECEIVED, NalogStatus.TESTING, NalogStatus.DRIVING,
+                NalogStatus.NEEDS_ELECTRICIAN, NalogStatus.AWAITING_PARTS, NalogStatus.IN_PROGRESS, NalogStatus.TESTING)) {
+            assertEquals(s, service.changeStatus(n.id(), s, tech2).status());
+        }
+        assertEquals(409, assertThrows(NalogException.class,
+                () -> service.changeStatus(n.id(), NalogStatus.DISPATCHED, tech2)).getStatus().value());   // no way back
+        readyToClose(n.id());
+        assertEquals(NalogStatus.COMPLETED, service.changeStatus(n.id(), NalogStatus.COMPLETED, tech2).status());
+    }
+
+    @Test
+    void aManagerHasAdminPowers() {
+        NalogResponse n = service.create(req(List.of()), null, manager);
+        assertEquals(NalogStatus.CANCELLED, service.changeStatus(n.id(), NalogStatus.CANCELLED, manager).status());
     }
 
     @Test

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { nalogApi } from '../api/nalog';
 import { NalogPrint } from '../components/NalogPrint';
 import Spinner from '../components/Spinner';
@@ -12,6 +12,8 @@ export default function NalogPrintPage() {
   const { id } = useParams();
   const { t } = useLang();
   const navigate = useNavigate();
+  const [search] = useSearchParams();
+  const revers = search.get('revers') === '1';
   const [nalog, setNalog] = useState<NalogResponse | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -29,7 +31,7 @@ export default function NalogPrintPage() {
       </div>
       {failed && <p>{t('nalogDetail_notFound')}</p>}
       {!nalog && !failed && <Spinner label={t('jobBoard_loading')} />}
-      {nalog && <NalogPrint nalog={nalog} company={COMPANY} />}
+      {nalog && <NalogPrint nalog={nalog} company={COMPANY} revers={revers} />}
     </div>
   );
 }

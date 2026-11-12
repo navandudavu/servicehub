@@ -12,6 +12,8 @@ import { useLang } from '../i18n/typedLang';
 import { usePolling } from '../hooks/usePolling';
 import { formatMoney } from '../print/formatMoney';
 import { EDITABLE_STATUSES, NEXT_STATUSES, type NalogResponse, type NalogStatus, type StatusHistoryView, type TechnicianView } from '../types/nalog';
+import { isAdminLevel } from '../context/roles';
+
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -29,7 +31,7 @@ export default function NalogDetail() {
   const locale = lang === 'sr' ? 'sr-Latn-RS' : 'en-GB';
   const user = useCurrentUser();
   const navigate = useNavigate();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = isAdminLevel(user?.role);
 
   const [nalog, setNalog] = useState<NalogResponse | null>(null);
   const [history, setHistory] = useState<StatusHistoryView[]>([]);
@@ -156,6 +158,9 @@ export default function NalogDetail() {
           ))}
           {canEdit && <button className="btn-secondary" disabled={busy} onClick={() => navigate(`/nalozi/${nalog.id}/edit`)}>{t('nalogDetail_edit')}</button>}
           <button className="btn-secondary" onClick={() => navigate(`/nalozi/${nalog.id}/print`)}>{t('nalogDetail_print')}</button>
+          {nalog.status === 'RECEIVED' && (
+            <button className="btn-secondary" onClick={() => navigate(`/nalozi/${nalog.id}/print?revers=1`)}>{t('nalogDetail_revers')}</button>
+          )}
           {canCancel && <button className="btn-danger-outline btn-sm" disabled={busy} onClick={() => setConfirmCancel(true)}>{t('nalogDetail_cancel')}</button>}
           {canDelete && <button className="btn-danger-outline btn-sm" disabled={busy} onClick={() => setConfirmDelete(true)}>{t('nalogDetail_delete')}</button>}
         </div>

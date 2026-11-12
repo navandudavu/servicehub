@@ -8,6 +8,10 @@ const STYLES: Record<NalogStatus, CSSProperties> = {
   DISPATCHED: { background: '#FFF9B0', color: 'var(--ink)', borderColor: 'var(--green-dark)' },
   IN_PROGRESS: { background: 'var(--green)', color: 'var(--on-accent)', borderColor: 'var(--green-dark)' },
   AWAITING_PARTS: { background: '#FBE3D3', color: '#8A3F12', borderColor: 'var(--orange)' },
+  RECEIVED: { background: '#E3ECF7', color: '#1F3F66', borderColor: '#5B84B5' },
+  TESTING: { background: '#EFE3F7', color: '#4A2466', borderColor: '#8E5BB5' },
+  DRIVING: { background: '#FFF9B0', color: 'var(--ink)', borderColor: 'var(--orange)' },
+  NEEDS_ELECTRICIAN: { background: '#FBE3D3', color: '#8A3F12', borderColor: 'var(--danger)' },
   COMPLETED: { background: 'var(--ink)', color: 'var(--green)', borderColor: 'var(--ink)' },
   CANCELLED: { background: 'transparent', color: 'var(--danger)', borderColor: 'var(--danger)' },
 };

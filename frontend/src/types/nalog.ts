@@ -12,7 +12,8 @@ export type DecimalString = string;
 // --- enums (string unions; names must match the Java enums + DB CHECKs) ---
 
 export const NALOG_STATUSES = [
-  'DRAFT', 'DISPATCHED', 'IN_PROGRESS', 'AWAITING_PARTS', 'COMPLETED', 'CANCELLED',
+  'DRAFT', 'DISPATCHED', 'IN_PROGRESS', 'AWAITING_PARTS', 'RECEIVED', 'TESTING', 'DRIVING', 'NEEDS_ELECTRICIAN',
+  'COMPLETED', 'CANCELLED',
 ] as const;
 export type NalogStatus = (typeof NALOG_STATUSES)[number];
 
@@ -264,9 +265,13 @@ export interface StockAdjustRequest {
  */
 export const NEXT_STATUSES: Record<NalogStatus, readonly NalogStatus[]> = {
   DRAFT: ['DISPATCHED', 'CANCELLED'],
-  DISPATCHED: ['IN_PROGRESS', 'CANCELLED'],
-  IN_PROGRESS: ['AWAITING_PARTS', 'COMPLETED', 'CANCELLED'],
-  AWAITING_PARTS: ['IN_PROGRESS', 'CANCELLED'],
+  DISPATCHED: ['IN_PROGRESS', 'AWAITING_PARTS', 'RECEIVED', 'TESTING', 'DRIVING', 'NEEDS_ELECTRICIAN', 'CANCELLED'],
+  IN_PROGRESS: ['AWAITING_PARTS', 'RECEIVED', 'TESTING', 'DRIVING', 'NEEDS_ELECTRICIAN', 'COMPLETED', 'CANCELLED'],
+  AWAITING_PARTS: ['IN_PROGRESS', 'RECEIVED', 'TESTING', 'DRIVING', 'NEEDS_ELECTRICIAN', 'COMPLETED', 'CANCELLED'],
+  RECEIVED: ['IN_PROGRESS', 'AWAITING_PARTS', 'TESTING', 'DRIVING', 'NEEDS_ELECTRICIAN', 'COMPLETED', 'CANCELLED'],
+  TESTING: ['IN_PROGRESS', 'AWAITING_PARTS', 'RECEIVED', 'DRIVING', 'NEEDS_ELECTRICIAN', 'COMPLETED', 'CANCELLED'],
+  DRIVING: ['IN_PROGRESS', 'AWAITING_PARTS', 'RECEIVED', 'TESTING', 'NEEDS_ELECTRICIAN', 'COMPLETED', 'CANCELLED'],
+  NEEDS_ELECTRICIAN: ['IN_PROGRESS', 'AWAITING_PARTS', 'RECEIVED', 'TESTING', 'DRIVING', 'COMPLETED', 'CANCELLED'],
   COMPLETED: [],
   CANCELLED: [],
 };
@@ -289,7 +294,9 @@ export interface UpdateNalogRequest {
 }
 
 /** Statuses that can still be edited (everything except the finished COMPLETED and the CANCELLED ones). */
-export const EDITABLE_STATUSES: readonly NalogStatus[] = ['DRAFT', 'DISPATCHED', 'IN_PROGRESS', 'AWAITING_PARTS'];
+export const EDITABLE_STATUSES: readonly NalogStatus[] = [
+  'DRAFT', 'DISPATCHED', 'IN_PROGRESS', 'AWAITING_PARTS', 'RECEIVED', 'TESTING', 'DRIVING', 'NEEDS_ELECTRICIAN',
+];
 
 /** PATCH /api/nalozi/{id}/assign (admin). technicianId: null un-assigns. */
 export interface AssignRequest {

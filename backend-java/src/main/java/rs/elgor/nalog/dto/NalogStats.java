@@ -7,7 +7,7 @@ import java.util.List;
 
 /** Dashboard numbers. Hours are strings ("12.50"), like every other decimal in this API. */
 public record NalogStats(
-        long open,                 // DRAFT + DISPATCHED + IN_PROGRESS + AWAITING_PARTS
+        long open,                 // everything except COMPLETED and CANCELLED
         long unassigned,           // open and nobody assigned
         long awaitingParts,
         long completedThisWeek,
