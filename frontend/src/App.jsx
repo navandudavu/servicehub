@@ -14,6 +14,8 @@ import NalogEdit from './pages/NalogEdit';
 import NalogPrintPage from './pages/NalogPrintPage';
 import Reports from './pages/Reports';
 import Parts from './pages/Parts';
+import Carried from './pages/Carried';
+import CarriedPrintPage from './pages/CarriedPrintPage';
 import { isAdminLevel, isOwner } from './context/roles';
 
 function RequireAuth({ children }) {
@@ -63,6 +65,12 @@ export default function App() {
       } />
       <Route path="/customers" element={
         <RequireAuth><Layout><Customers /></Layout></RequireAuth>
+      } />
+      <Route path="/carried" element={
+        <RequireAuth><Layout><Carried /></Layout></RequireAuth>
+      } />
+      <Route path="/carried/print" element={
+        <RequireAuth><CarriedPrintPage /></RequireAuth>
       } />
       <Route path="/parts" element={
         <RequireAuth><RequireAdmin><Layout><Parts /></Layout></RequireAdmin></RequireAuth>

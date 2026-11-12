@@ -22,6 +22,7 @@ export default function Layout({ children }) {
     { to: '/nalozi', label: t('nav_nalozi') },
     { to: '/calendar', label: t('nav_calendar') },
     { to: '/customers', label: t('nav_customers') },
+    { to: '/carried', label: t('nav_carried') },
   ];
   const adminNavItems = [
     { to: '/parts', label: t('nav_parts') },

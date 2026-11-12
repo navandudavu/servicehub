@@ -188,6 +188,10 @@ Nova instalacija ovo ne traži.
 - Prijava je ograničena na 8 neuspešnih pokušaja po IP adresi i email-u u 15 minuta (i 40 po IP adresi). Lozinke: najmanje 8 znakova, BCrypt.
 - Otkazani nalog ne prima fotografije.
 
+### Zaduživanje
+
+Kartica **Zaduživanje** (svi korisnici): lista materijala koji serviser nosi sa sobom (šifra, naziv, količina), najviše **50 stavki po serviseru**. Serviser vodi samo svoju listu, administrator i menadžer bilo čiju (biraju servisera). Nije povezano sa magacinom i ne pomera zalihe. Dugme *Štampaj* otvara dokument „Zaduženje materijala“ za štampu (API: `/api/carried`).
+
 ### Uloge
 
 - **Administrator**: sve, uključujući karticu *Tim* (nalozi korisnika, uloge, lozinke).

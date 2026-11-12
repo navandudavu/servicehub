@@ -309,6 +309,22 @@ export interface TechnicianView {
   name: string;
 }
 
+/** Mirrors CarriedDtos.java (zaduzivanje: what a technician carries). */
+export interface CarriedView {
+  id: number;
+  technicianId: number;
+  sku: string | null;
+  name: string;
+  quantity: number;
+}
+
+export interface CarriedRequest {
+  sku: string | null;
+  name: string;
+  quantity: number;
+  technicianId?: number | null;   // admins only: whose list
+}
+
 export type PhotoCategory = 'before' | 'after' | 'label' | 'workorder' | 'other';
 
 /** Mirrors PhotoView.java. Metadata only; the image bytes are fetched with the auth header (see nalogApi.fetchPhotoBlob). */
