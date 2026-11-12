@@ -56,6 +56,7 @@ export interface CreateNalogRequest {
   diagnosis: string;
   partLines: PartLineInput[];
   laborHours: DecimalString; // "1.50", max 2 decimals
+  price?: DecimalString | null; // typed by hand, net total; blank = 0.00 (on edit: unchanged)
   paymentType: PaymentType;
   status?: Extract<NalogStatus, 'DRAFT' | 'DISPATCHED'> | null;
   scheduledAt?: string | null; // ISO-8601 instant, UTC
@@ -198,6 +199,7 @@ export interface StatusHistoryView {
 export interface PreviewRequest {
   partLines: PartLineInput[];
   laborHours: DecimalString;
+  price?: DecimalString | null;
   /** When editing: price against this nalog (its own rates and the part prices it already holds). */
   nalogId?: number | null;
 }
@@ -241,13 +243,13 @@ export interface StockMovementView {
 export interface CreatePartRequest {
   sku: string;
   name: string;
-  unitPrice: DecimalString;
+  unitPrice?: DecimalString | null;
   stockQty: number;
 }
 
 export interface UpdatePartRequest {
   name: string;
-  unitPrice: DecimalString;
+  unitPrice?: DecimalString | null;
   active: boolean;
 }
 
@@ -281,6 +283,7 @@ export interface UpdateNalogRequest {
   workDone?: string | null;
   partLines: PartLineInput[];
   laborHours: DecimalString;
+  price?: DecimalString | null;
   paymentType: PaymentType;
   expectedVersion: number;
 }

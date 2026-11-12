@@ -59,6 +59,20 @@ class PartsAndNotesIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void thePriceOfAPartIsOptional() throws Exception {
+        String body = mvc.perform(post("/api/parts").with(admin()).contentType(JSON)
+                        .content("{\"sku\":\"NP1\",\"name\":\"Bez cene\",\"stockQty\":2}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.unitPrice", is("0.00")))
+                .andReturn().getResponse().getContentAsString();
+        long id = ((Number) JsonPath.read(body, "$.id")).longValue();
+        mvc.perform(put("/api/parts/" + id).with(admin()).contentType(JSON)
+                .content("{\"name\":\"Bez cene 2\",\"active\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.unitPrice", is("0.00")));
+    }
+
+    @Test
     void techniciansCanSearchPartsForTheNalogForm() throws Exception {
         createPart("A1", 3);
         mvc.perform(get("/api/parts").with(tech2()).param("q", "filter"))

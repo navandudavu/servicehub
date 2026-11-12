@@ -45,8 +45,6 @@ services:
       NALOG_REMINDER_CRON: "${REMINDER_CRON:-0 0 8-19 * * MON-SAT}"
       NALOG_REMINDER_ENABLED: ${REMINDER_ENABLED:-true}
       NALOG_CORS_ORIGINS: ${PUBLIC_URL:-http://localhost}
-      NALOG_PRICING_LABOR_RATE_PER_HOUR: ${LABOR_RATE:-2500.00}
-      NALOG_PRICING_VAT_RATE: ${VAT_RATE:-0.2000}
     volumes:
       - ${DATA_DIR:-./data}/photos:/data/photos
       - ./secrets:/secrets:ro

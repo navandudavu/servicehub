@@ -39,7 +39,7 @@ class NalogServiceIntegrationTest extends AbstractIntegrationTest {
         return new CreateNalogRequest(null,
                 new CustomerInput("Petar Petrović", "Cara Lazara 1", "Kruševac", "060 123 456", null, null),
                 new ApplianceInput(ApplianceType.values()[0], "Gorenje", "X1", "SN1"),
-                "Ne hladi", parts, new BigDecimal("1.50"), PaymentType.values()[0], status, null, assignTo);
+                "Ne hladi", parts, new BigDecimal("1.50"), new BigDecimal("8000.00"), PaymentType.values()[0], status, null, assignTo);
     }
 
     private CreateNalogRequest req(List<PartLineInput> parts) { return req(parts, null, null); }
@@ -52,11 +52,9 @@ class NalogServiceIntegrationTest extends AbstractIntegrationTest {
         NalogResponse n = service.create(req(List.of(new PartLineInput(p, 2))), null, admin);
 
         assertEquals(NalogStatus.DRAFT, n.status());
-        assertEquals(new BigDecimal("3750.00"), n.laborTotal());   // 1.5 h * 2500
-        assertEquals(new BigDecimal("2469.10"), n.partsTotal());
-        assertEquals(new BigDecimal("6219.10"), n.subtotal());
-        assertEquals(new BigDecimal("1243.82"), n.vatAmount());
-        assertEquals(new BigDecimal("7462.92"), n.total());
+        assertEquals(new BigDecimal("8000.00"), n.total());        // the typed price; parts (2 x 1234.55) do not change it
+        assertEquals(new BigDecimal("0.00"), n.partsTotal());
+        assertEquals(new BigDecimal("0.00"), n.vatAmount());
         assertEquals(8, stockOf(p));
         assertEquals(1, count("stock_movement"));
         assertEquals(1, count("nalog_status_history"));

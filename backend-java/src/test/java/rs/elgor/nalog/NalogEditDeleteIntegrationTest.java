@@ -58,13 +58,13 @@ class NalogEditDeleteIntegrationTest extends AbstractIntegrationTest {
     private NalogResponse create(List<PartLineInput> parts, Long assignTo) {
         return service.create(new CreateNalogRequest(null, someone(),
                 new ApplianceInput(ApplianceType.AIR_CONDITIONER, "Gorenje", "X1", "SN1"),
-                "Ne hladi", parts, new BigDecimal("1.50"), PaymentType.CASH, null, null, assignTo), null, admin);
+                "Ne hladi", parts, new BigDecimal("1.50"), new BigDecimal("8000.00"), PaymentType.CASH, null, null, assignTo), null, admin);
     }
 
     private UpdateNalogRequest edit(NalogResponse n, List<PartLineInput> parts, String hours) {
         return new UpdateNalogRequest(n.customer().id(), null,
                 new ApplianceInput(ApplianceType.AIR_CONDITIONER, "Bosch", null, null),
-                "Novi opis", null, parts, new BigDecimal(hours), PaymentType.CASH, n.version());
+                "Novi opis", null, parts, new BigDecimal(hours), null, PaymentType.CASH, n.version());
     }
 
     private static NalogResponse.PartLineView line(NalogResponse n, long partId) {
@@ -93,11 +93,7 @@ class NalogEditDeleteIntegrationTest extends AbstractIntegrationTest {
         assertEquals(new BigDecimal("100.00"), line(e, a).unitPrice());           // old line keeps ITS price
         assertEquals(new BigDecimal("500.00"), line(e, a).lineTotal());
         assertEquals(new BigDecimal("50.00"), line(e, b).unitPrice());            // new part: today's price
-        assertEquals(new BigDecimal("550.00"), e.partsTotal());
-        assertEquals(new BigDecimal("5000.00"), e.laborTotal());                  // 2 h * 2500
-        assertEquals(new BigDecimal("5550.00"), e.subtotal());
-        assertEquals(new BigDecimal("1110.00"), e.vatAmount());
-        assertEquals(new BigDecimal("6660.00"), e.total());
+        assertEquals(new BigDecimal("8000.00"), e.total());                       // no price sent on edit: the nalog keeps its price
         assertEquals("Novi opis", e.diagnosis());
         assertTrue(e.version() > n.version());
         assertEquals(-3, ledger(a, "NALOG_EDIT"));
@@ -105,13 +101,15 @@ class NalogEditDeleteIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void editKeepsTheRatesTheNalogWasCreatedWith() {
+    void editCanChangeThePriceByHand() {
         NalogResponse n = create(List.of(), null);
-        jdbc.update("UPDATE nalog SET labor_rate = 3000.00 WHERE id = ?", n.id());       // pretend the rate was different back then
-        NalogResponse e = service.update(n.id(), edit(service.get(n.id(), admin), List.of(), "1.00"), admin);
-        assertEquals(new BigDecimal("3000.00"), e.laborRate());
-        assertEquals(new BigDecimal("3000.00"), e.laborTotal());
-        assertEquals(new BigDecimal("3600.00"), e.total());                                // + 20% VAT
+        NalogResponse base = service.get(n.id(), admin);
+        UpdateNalogRequest req = new UpdateNalogRequest(base.customer().id(), null,
+                new ApplianceInput(ApplianceType.AIR_CONDITIONER, "Bosch", null, null),
+                "Novi opis", null, List.of(), new BigDecimal("1.00"), new BigDecimal("4321.50"), PaymentType.CASH, base.version());
+        NalogResponse e = service.update(n.id(), req, admin);
+        assertEquals(new BigDecimal("4321.50"), e.total());
+        assertEquals(new BigDecimal("0.00"), e.vatAmount());
     }
 
     @Test
@@ -124,7 +122,6 @@ class NalogEditDeleteIntegrationTest extends AbstractIntegrationTest {
 
         assertEquals(10, stockOf(a));
         assertTrue(e.partLines().isEmpty());
-        assertEquals(new BigDecimal("0.00"), e.partsTotal());
         assertEquals(0, count("nalog_part_line"));
         assertEquals(3, ledger(a, "NALOG_EDIT"));
     }
@@ -135,7 +132,7 @@ class NalogEditDeleteIntegrationTest extends AbstractIntegrationTest {
         NalogResponse n = create(List.of(new PartLineInput(a, 2)), null);          // stock A = 1
         UpdateNalogRequest tooMuch = new UpdateNalogRequest(null, someone(),
                 new ApplianceInput(ApplianceType.AIR_CONDITIONER, "Bosch", null, null),
-                "Novi opis", null, List.of(new PartLineInput(a, 5)), new BigDecimal("1.00"), PaymentType.CASH, n.version());
+                "Novi opis", null, List.of(new PartLineInput(a, 5)), new BigDecimal("1.00"), null, PaymentType.CASH, n.version());
 
         NalogException ex = assertThrows(NalogException.class, () -> service.update(n.id(), tooMuch, admin));
 
@@ -186,7 +183,7 @@ class NalogEditDeleteIntegrationTest extends AbstractIntegrationTest {
         UpdateNalogRequest req = new UpdateNalogRequest(null,
                 new CustomerInput("Marko Marković", "Vidovdanska 5", "Kruševac", "063 555 111", null, null),
                 new ApplianceInput(ApplianceType.AIR_CONDITIONER, "Bosch", null, null),
-                "Novi opis", null, List.of(), new BigDecimal("1.00"), PaymentType.CASH, n.version());
+                "Novi opis", null, List.of(), new BigDecimal("1.00"), null, PaymentType.CASH, n.version());
         NalogResponse e = service.update(n.id(), req, admin);
 
         assertNotEquals(n.customer().id(), e.customer().id());
@@ -199,14 +196,13 @@ class NalogEditDeleteIntegrationTest extends AbstractIntegrationTest {
         long a = insertPart("A", "100.00", 3);
         NalogResponse n = create(List.of(new PartLineInput(a, 3)), null);          // stock A = 0
         jdbc.update("UPDATE parts SET unit_price = 999.00 WHERE id = ?", a);
-        jdbc.update("UPDATE nalog SET labor_rate = 3000.00 WHERE id = ?", n.id());
 
-        NalogPreview p = service.preview(new PreviewRequest(List.of(new PartLineInput(a, 3)), new BigDecimal("1.00"), n.id()), admin);
-        assertEquals(new BigDecimal("300.00"), p.partsTotal());                    // snapshot price, and no false "out of stock"
-        assertEquals(new BigDecimal("3000.00"), p.laborTotal());
+        NalogPreview p = service.preview(new PreviewRequest(List.of(new PartLineInput(a, 3)), new BigDecimal("1.00"), null, n.id()), admin);
+        assertEquals(new BigDecimal("100.00"), p.partLines().get(0).unitPrice());  // snapshot price, and no false "out of stock"
+        assertEquals(new BigDecimal("8000.00"), p.total());                        // no price sent: the nalog's own price
 
         assertThrows(NalogException.class,                                          // a brand-new nalog really is out of stock
-                () -> service.preview(new PreviewRequest(List.of(new PartLineInput(a, 3)), new BigDecimal("1.00"), null), admin));
+                () -> service.preview(new PreviewRequest(List.of(new PartLineInput(a, 3)), new BigDecimal("1.00"), null, null), admin));
     }
 
     // ---------------------------------------------------------------- delete

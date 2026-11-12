@@ -31,9 +31,6 @@ server:
     include-stacktrace: never
 
 nalog:
-  pricing:
-    vat-rate: 0.2000                        # Serbian standard VAT 20%
-    labor-rate-per-hour: 2500.00            # RSD, net of VAT
   security:
     # Signs and verifies the login tokens (HS256). Must be >= 32 bytes. No default: startup fails if missing/short.
     # Changing it logs everybody out.
