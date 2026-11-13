@@ -181,7 +181,7 @@ class NalogServiceIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void closingNeedsAPhotoAndAWorkDescription() {
+    void closingNeedsABeforeAndAnAfterPhotoAndAWorkDescription() {
         NalogResponse n = service.create(req(List.of()), null, admin);
         service.changeStatus(n.id(), NalogStatus.DISPATCHED, admin);
         service.changeStatus(n.id(), NalogStatus.IN_PROGRESS, admin);
@@ -193,7 +193,15 @@ class NalogServiceIntegrationTest extends AbstractIntegrationTest {
         assertEquals(400, assertThrows(NalogException.class,
                 () -> service.changeStatus(n.id(), NalogStatus.COMPLETED, admin)).getStatus().value());
 
-        readyToClose(n.id());
+        addPhoto(n.id(), "before");                                                            // only Pre, no Posle
+        assertEquals(400, assertThrows(NalogException.class,
+                () -> service.changeStatus(n.id(), NalogStatus.COMPLETED, admin)).getStatus().value());
+
+        addPhoto(n.id(), "label");                                                             // another category does not count
+        assertEquals(400, assertThrows(NalogException.class,
+                () -> service.changeStatus(n.id(), NalogStatus.COMPLETED, admin)).getStatus().value());
+
+        addPhoto(n.id(), "after");
         assertEquals(NalogStatus.COMPLETED, service.changeStatus(n.id(), NalogStatus.COMPLETED, admin).status());
     }
 

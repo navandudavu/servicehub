@@ -10,4 +10,5 @@ public interface NalogPhotoRepository extends JpaRepository<NalogPhoto, Long> {
     List<NalogPhoto> findByNalogIdOrderByIdAsc(Long nalogId);
     Optional<NalogPhoto> findByIdAndNalogId(Long id, Long nalogId);
     long countByNalogId(Long nalogId);
+    long countByNalogIdAndCategory(Long nalogId, String category);
 }

@@ -35,6 +35,16 @@ class CustomerIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void searchFindsByStreetAndCity() {
+        customers.create(new CustomerRequest("Petar Petrović", "Cara Lazara 1", "Kruševac", "060 111", "", null));
+        customers.create(new CustomerRequest("Mika Mikić", "Njegoševa 7", "Niš", "060 222", "", null));
+        assertEquals(1, customers.list("lazara").size());
+        assertEquals(1, customers.list("niš").size());
+        assertEquals(1, customers.list("KRUŠEVAC").size());
+        assertEquals(0, customers.list("beograd").size());
+    }
+
+    @Test
     void emptyCustomerHistoryAndDeleteRules() {
         CustomerView c = make("Petar Petrović");
         CustomerDetail d = customers.get(c.id(), tech);

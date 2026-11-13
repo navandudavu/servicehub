@@ -202,8 +202,11 @@ public class NalogService {
             restoreStock(nalog, actor, StockMovement.Reason.NALOG_CANCEL);
         }
         if (target == NalogStatus.COMPLETED) {
-            if (photoRepository.countByNalogId(nalog.getId()) == 0) {
-                throw NalogException.invalid("Nalog se ne može zatvoriti bez fotografije");
+            if (photoRepository.countByNalogIdAndCategory(nalog.getId(), "before") == 0) {
+                throw NalogException.invalid("Nalog se ne može zatvoriti bez fotografije \"Pre\"");
+            }
+            if (photoRepository.countByNalogIdAndCategory(nalog.getId(), "after") == 0) {
+                throw NalogException.invalid("Nalog se ne može zatvoriti bez fotografije \"Posle\"");
             }
             if (nalog.getWorkDone() == null || nalog.getWorkDone().isBlank()) {
                 throw NalogException.invalid("Nalog se ne može zatvoriti bez opisa izvršenih radova");
@@ -579,6 +582,25 @@ public class NalogService {
             throw NalogException.conflict("A completed or cancelled nalog cannot be rescheduled");
         }
         n.setScheduledAt(scheduledAt);
+        return NalogResponse.from(n);
+    }
+
+    /**
+     * Sets "Izvrseni radovi" on its own (the phone edits it from the nalog screen, not from the full edit form).
+     * The assigned technician or any admin-level user may; a closed nalog only admin-level, a cancelled one nobody.
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public NalogResponse setWorkDone(Long id, String workDone, AuthUser actor) {
+        Nalog n = nalogRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> NalogException.notFound("Nalog " + id + " not found"));
+        requireAccess(n, actor);
+        if (n.getStatus() == NalogStatus.CANCELLED) {
+            throw NalogException.conflict("A cancelled nalog cannot be edited");
+        }
+        if (n.getStatus() == NalogStatus.COMPLETED && (actor == null || !actor.isAdmin())) {
+            throw NalogException.conflict("A completed nalog can only be edited by an administrator");
+        }
+        n.setWorkDone(blankToNull(workDone));
         return NalogResponse.from(n);
     }
 

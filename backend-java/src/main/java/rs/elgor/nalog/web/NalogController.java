@@ -150,6 +150,13 @@ public class NalogController {
         return nalogService.setSchedule(id, request.scheduledAt(), directory.resolve(jwt));
     }
 
+    /** Assigned technician or admin-level. Sets or clears "Izvrseni radovi" without the full edit form. */
+    @PatchMapping("/{id}/work-done")
+    public NalogResponse workDone(@PathVariable Long id, @Valid @RequestBody WorkDoneRequest request,
+                                  @AuthenticationPrincipal Jwt jwt) {
+        return nalogService.setWorkDone(id, request.workDone(), directory.resolve(jwt));
+    }
+
     /** Customer autocomplete for the new-nalog form. */
     @GetMapping("/customers")
     public List<NalogResponse.CustomerView> customers(@RequestParam(required = false) String q) {
