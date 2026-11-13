@@ -171,6 +171,21 @@ class NalogEditDeleteIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void workDoneCanBeSetOnItsOwnWithTheUsualAccessRules() {
+        NalogResponse n = create(List.of(), 2L);
+        assertEquals("Zamenjen kompresor", service.setWorkDone(n.id(), "  Zamenjen kompresor ", tech2).workDone());
+        assertEquals(404, assertThrows(NalogException.class, () -> service.setWorkDone(n.id(), "x", tech3)).getStatus().value());
+        assertNull(service.setWorkDone(n.id(), "   ", tech2).workDone());                      // blank clears it
+
+        service.changeStatus(n.id(), NalogStatus.DISPATCHED, admin);
+        service.changeStatus(n.id(), NalogStatus.IN_PROGRESS, admin);
+        readyToClose(n.id());
+        service.changeStatus(n.id(), NalogStatus.COMPLETED, admin);
+        assertEquals(409, assertThrows(NalogException.class, () -> service.setWorkDone(n.id(), "x", tech2)).getStatus().value());
+        assertEquals("Ispravka", service.setWorkDone(n.id(), "Ispravka", admin).workDone());
+    }
+
+    @Test
     void aTechnicianEditsOnlyTheirOwnNalog() {
         NalogResponse n = create(List.of(), 2L);
         assertEquals(404, assertThrows(NalogException.class, () -> service.update(n.id(), edit(n, List.of(), "1.00"), tech3)).getStatus().value());
