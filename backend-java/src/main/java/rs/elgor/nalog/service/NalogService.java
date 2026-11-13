@@ -202,8 +202,11 @@ public class NalogService {
             restoreStock(nalog, actor, StockMovement.Reason.NALOG_CANCEL);
         }
         if (target == NalogStatus.COMPLETED) {
-            if (photoRepository.countByNalogId(nalog.getId()) == 0) {
-                throw NalogException.invalid("Nalog se ne može zatvoriti bez fotografije");
+            if (photoRepository.countByNalogIdAndCategory(nalog.getId(), "before") == 0) {
+                throw NalogException.invalid("Nalog se ne može zatvoriti bez fotografije \"Pre\"");
+            }
+            if (photoRepository.countByNalogIdAndCategory(nalog.getId(), "after") == 0) {
+                throw NalogException.invalid("Nalog se ne može zatvoriti bez fotografije \"Posle\"");
             }
             if (nalog.getWorkDone() == null || nalog.getWorkDone().isBlank()) {
                 throw NalogException.invalid("Nalog se ne može zatvoriti bez opisa izvršenih radova");

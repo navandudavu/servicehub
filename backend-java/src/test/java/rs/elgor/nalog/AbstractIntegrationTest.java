@@ -43,8 +43,13 @@ public abstract class AbstractIntegrationTest {
     /** Gives a nalog what the closing rule asks for (izvrseni radovi + at least one photo row). */
     protected void readyToClose(long nalogId) {
         jdbc.update("UPDATE nalog SET work_done = 'Zamenjen deo' WHERE id = ?", nalogId);
-        jdbc.update("INSERT INTO nalog_photo (nalog_id, filename, content_type, size_bytes) VALUES (?, ?, 'image/jpeg', 1)",
-                nalogId, java.util.UUID.randomUUID() + ".jpg");
+        addPhoto(nalogId, "before");
+        addPhoto(nalogId, "after");
+    }
+
+    protected void addPhoto(long nalogId, String category) {
+        jdbc.update("INSERT INTO nalog_photo (nalog_id, filename, content_type, size_bytes, category) VALUES (?, ?, 'image/jpeg', 1, ?)",
+                nalogId, java.util.UUID.randomUUID() + ".jpg", category);
     }
 
     @DynamicPropertySource

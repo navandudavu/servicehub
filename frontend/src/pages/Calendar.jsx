@@ -117,9 +117,6 @@ export default function Calendar() {
                     className="card"
                     style={{ textAlign: 'left', padding: '6px 8px', fontSize: 11.5, cursor: 'pointer', width: '100%' }}
                   >
-                    <div style={{ fontWeight: 500 }}>
-                      {new Date(e.scheduledAt).toLocaleTimeString(localeTag, { hour: '2-digit', minute: '2-digit' })}
-                    </div>
                     <div style={{ color: 'var(--stone)', fontFamily: 'var(--mono)' }}>{e.nalogNumber}</div>
                     <div>{e.customerName}</div>
                     {e.assignedToName && <div style={{ color: 'var(--stone)' }}>{e.assignedToName}</div>}

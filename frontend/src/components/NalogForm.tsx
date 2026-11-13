@@ -89,7 +89,7 @@ export function NalogForm({ isAdmin, onCreated, editing, onSaved }: Props) {
   // --- misc ---
   const [paymentType, setPaymentType] = useState<PaymentType>(editing?.paymentType ?? 'CASH');
   const [initialStatus, setInitialStatus] = useState<'DRAFT' | 'DISPATCHED'>('DRAFT');
-  const [scheduledAt, setScheduledAt] = useState('');          // datetime-local (browser local time)
+  const [scheduledAt, setScheduledAt] = useState('');          // date (YYYY-MM-DD)
   const [technicians, setTechnicians] = useState<TechnicianView[]>([]);
   const [technicianError, setTechnicianError] = useState<string | null>(null);
   const [assignedTo, setAssignedTo] = useState('');
@@ -235,8 +235,8 @@ export function NalogForm({ isAdmin, onCreated, editing, onSaved }: Props) {
       price: priceValue || null,
       paymentType,
       status: isAdmin ? initialStatus : 'DRAFT',
-      // datetime-local is browser-local time; toISOString() converts it to the correct UTC instant.
-      scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
+      // Date only: sent as local noon so the calendar day cannot flip on a timezone conversion.
+      scheduledAt: scheduledAt ? new Date(`${scheduledAt}T12:00:00`).toISOString() : null,
       assignedToId: isAdmin && assignedTo ? Number(assignedTo) : null,
     };
 
@@ -347,11 +347,9 @@ export function NalogForm({ isAdmin, onCreated, editing, onSaved }: Props) {
         <Field label={t('nalogForm_diagnosis')} error={fe('diagnosis')}>
           <textarea className="input" rows={4} value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} required />
         </Field>
-        {editing && (
-          <Field label={t('nalogForm_workDone')} error={fe('workDone')}>
-            <textarea className="input" rows={4} value={workDone} onChange={(e) => setWorkDone(e.target.value)} />
-          </Field>
-        )}
+        <Field label={t('nalogForm_workDone')} error={fe('workDone')}>
+          <textarea className="input" rows={4} value={workDone} onChange={(e) => setWorkDone(e.target.value)} />
+        </Field>
       </Section>
 
       {/* ---------- parts & labor ---------- */}
@@ -409,7 +407,7 @@ export function NalogForm({ isAdmin, onCreated, editing, onSaved }: Props) {
           </Field>
           {!editing && (
             <Field label={t('nalogForm_scheduledAt')} error={fe('scheduledAt')}>
-              <input className="input" type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+              <input className="input" type="date" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
             </Field>
           )}
           {isAdmin && !editing && (

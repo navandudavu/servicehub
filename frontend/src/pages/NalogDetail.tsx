@@ -42,7 +42,7 @@ export default function NalogDetail() {
   const [busy, setBusy] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [visit, setVisit] = useState('');                    // datetime-local value, browser time
+  const [visit, setVisit] = useState('');                    // date value (YYYY-MM-DD)
 
   const load = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -89,7 +89,7 @@ export default function NalogDetail() {
     if (!nalog?.scheduledAt) { setVisit(''); return; }
     const d = new Date(nalog.scheduledAt);
     const p2 = (n: number) => String(n).padStart(2, '0');
-    setVisit(`${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`);
+    setVisit(`${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`);
   }, [nalog?.scheduledAt]);
 
   async function run(action: () => Promise<NalogResponse>) {
@@ -132,6 +132,7 @@ export default function NalogDetail() {
     );
   }
 
+  const fmtDate = (iso: string) => new Date(iso).toLocaleDateString(locale, { dateStyle: 'short' });
   const fmtDateTime = (iso: string) => new Date(iso).toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' });
   const closed = nalog.status === 'COMPLETED' || nalog.status === 'CANCELLED';
   const moves = NEXT_STATUSES[nalog.status].filter((s) => s !== 'CANCELLED');
@@ -189,11 +190,9 @@ export default function NalogDetail() {
             <div style={{ whiteSpace: 'pre-wrap' }}>{nalog.diagnosis}</div>
           </Card>
 
-          {nalog.workDone && (
-            <Card title={t('nalogDetail_workDone')}>
-              <div style={{ whiteSpace: 'pre-wrap' }}>{nalog.workDone}</div>
-            </Card>
-          )}
+          <Card title={t('nalogDetail_workDone')}>
+            <div style={{ whiteSpace: 'pre-wrap' }}>{nalog.workDone || '—'}</div>
+          </Card>
 
           <NalogPhotos nalogId={nalog.id} canUpload={nalog.status !== 'CANCELLED'} isAdmin={isAdmin} userId={user?.id ?? null} />
 
@@ -237,9 +236,9 @@ export default function NalogDetail() {
                 <div>
                   <div>{t('nalogDetail_setVisit')}:</div>
                   <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
-                    <input className="input" type="datetime-local" value={visit} onChange={(e) => setVisit(e.target.value)} style={{ flex: 1, minWidth: 170 }} />
+                    <input className="input" type="date" value={visit} onChange={(e) => setVisit(e.target.value)} style={{ flex: 1, minWidth: 170 }} />
                     <button className="btn btn-sm" disabled={busy || !visit}
-                            onClick={() => run(() => nalogApi.setSchedule(nalog.id, new Date(visit).toISOString()))}>{t('nalogDetail_saveVisit')}</button>
+                            onClick={() => run(() => nalogApi.setSchedule(nalog.id, new Date(`${visit}T12:00:00`).toISOString()))}>{t('nalogDetail_saveVisit')}</button>
                     {nalog.scheduledAt && (
                       <button className="btn-secondary btn-sm" disabled={busy}
                               onClick={() => run(() => nalogApi.setSchedule(nalog.id, null))}>{t('nalogDetail_clearVisit')}</button>
@@ -247,7 +246,7 @@ export default function NalogDetail() {
                   </div>
                 </div>
               ) : (
-                nalog.scheduledAt && <div>{t('nalogDetail_scheduled')}: {fmtDateTime(nalog.scheduledAt)}</div>
+                nalog.scheduledAt && <div>{t('nalogDetail_scheduled')}: {fmtDate(nalog.scheduledAt)}</div>
               )}
               {nalog.completedAt && <div>{t('nalogDetail_completed')}: {fmtDateTime(nalog.completedAt)}</div>}
               <div>{t('nalogDetail_createdBy')}: {nalog.createdByName ?? '—'}</div>

@@ -64,7 +64,7 @@ Lista sa pretragom i prikazom ukinutih delova, novi deo, izmena (naziv, cena, ak
 
 ### Zatvaranje naloga
 
-Nalog se ne može zatvoriti (*Završen*) bez bar jedne fotografije i bez opisa **izvršenih radova**; server odbija zatvaranje sa porukom. Fotografije imaju kategorije *Pre*, *Posle*, *Nalepnica / SN*, *Radni nalog* i *Ostalo*. Naloge pravi samo administrator (serviseri rade nalog koji im je dodeljen). Delove na zatvorenom nalogu može da menja samo administrator.
+Nalog se ne može zatvoriti (*Završen*) bez bar jedne fotografije kategorije *Pre*, bar jedne kategorije *Posle* i bez opisa **izvršenih radova**; server odbija zatvaranje sa porukom. Fotografije imaju kategorije *Pre*, *Posle*, *Nalepnica / SN*, *Radni nalog* i *Ostalo*. Naloge pravi samo administrator (serviseri rade nalog koji im je dodeljen). Delove na zatvorenom nalogu može da menja samo administrator.
 
 ### Pregled, kalendar, izveštaji
 
