@@ -92,7 +92,7 @@ export default function NalogDetail() {
     setVisit(`${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`);
   }, [nalog?.scheduledAt]);
 
-  async function run(action: () => Promise<NalogResponse>) {
+  async function run(action: () => Promise<NalogResponse>, rejectedPrefix?: string) {
     if (busy) return;
     setBusy(true); setError('');
     epoch.current++;
@@ -100,8 +100,10 @@ export default function NalogDetail() {
       setNalog(await action());
       setHistory(await nalogApi.getNalogHistory(nalogId));
     } catch (e) {
-      setError(e instanceof NalogApiError ? e.message : t('nalogForm_unexpected'));
-      await load();                                   // show the server's current truth after a rejected move
+      const msg = e instanceof NalogApiError ? e.message : t('nalogForm_unexpected');
+      await load();                                   // show the server's current truth after a rejected move (load() clears the error banner...)
+      // ...so the message is set AFTER it. A 400 on a status move (closing conditions) gets a plain headline.
+      setError(rejectedPrefix && e instanceof NalogApiError && e.status === 400 ? `${rejectedPrefix} ${msg}` : msg);
     } finally {
       epoch.current++;
       setBusy(false);
@@ -153,7 +155,7 @@ export default function NalogDetail() {
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {moves.map((s: NalogStatus) => (
-            <button key={s} className="btn" disabled={busy} onClick={() => run(() => nalogApi.changeStatus(nalog.id, s))}>
+            <button key={s} className="btn" disabled={busy} onClick={() => run(() => nalogApi.changeStatus(nalog.id, s), s === 'COMPLETED' ? t('nalogDetail_closeBlocked') : undefined)}>
               {t('nalogDetail_nextActions')}: {t(`nalogStatus_${s}`)}
             </button>
           ))}
