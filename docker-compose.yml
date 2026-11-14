@@ -14,7 +14,23 @@ services:
     image: postgres:16
     restart: unless-stopped
     logging: *logging
+    # STARTUP GUARD (runs on EVERY start of this container, including automatic restarts by Docker):
+    # Postgres only starts if the data folder already holds a database (PG_VERSION). An empty or missing folder
+    # (data disk not mounted yet, Docker Desktop up before WSL, someone deleted it) ABORTS the start instead of
+    # silently creating a new empty database that looks like "all nalozi and team are gone".
+    # First install only: ALLOW_NEW_DATABASE=true docker compose up -d --build   (then plain `up -d` afterwards).
+    command:
+      - sh
+      - -c
+      - |
+        if [ ! -s /var/lib/postgresql/data/PG_VERSION ] && [ "$${ALLOW_NEW_DATABASE}" != "true" ]; then
+          echo "ABORT: no existing database in the data folder (PG_VERSION missing). Refusing to create a new empty one." >&2
+          echo "If this is a first install: ALLOW_NEW_DATABASE=true docker compose up -d. Otherwise check DATA_DIR / the data disk." >&2
+          exit 1
+        fi
+        exec docker-entrypoint.sh postgres
     environment:
+      ALLOW_NEW_DATABASE: ${ALLOW_NEW_DATABASE:-false}
       POSTGRES_DB: elgor_nalog
       POSTGRES_USER: elgor
       POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD missing in .env}

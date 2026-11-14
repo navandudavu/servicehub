@@ -30,6 +30,7 @@ chmod 750 ./secrets
 echo
 echo "Gotovo. Sledeci koraci:"
 echo "  1) nano .env                         (adresa, cene, BACKUP_DIR)"
-echo "  2) docker compose up -d --build      (prvi build traje nekoliko minuta)"
+echo "  2) ALLOW_NEW_DATABASE=true docker compose up -d --build   (SAMO prva instalacija; prvi build traje nekoliko minuta."
+echo "     Posle toga uvek samo: docker compose up -d --build  -- zastita ne dozvoljava novu praznu bazu)"
 echo "  3) docker compose ps                 (sve treba da bude 'healthy' / 'running')"
 echo "  4) bash deploy/backup.sh             (probni backup, pre nego sto iko pocne da koristi sistem)"

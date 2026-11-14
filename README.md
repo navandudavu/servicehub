@@ -166,7 +166,7 @@ npm install
 npm run dev        # http://localhost:5173
 ```
 
-Ceo sistem se može podići i Dockerom (`docker compose up -d --build`, vidi `deploy/DEPLOY.md`). Na Windowsu sa WSL2: Docker Desktop mora imati uključenu WSL integraciju za vašu Ubuntu distribuciju, a korisnik mora biti u grupi `docker`.
+Ceo sistem se može podići i Dockerom (`docker compose up -d --build`; **samo prvi put** `ALLOW_NEW_DATABASE=true docker compose up -d --build`, posle toga Postgres odbija da pokrene novu praznu bazu ako folder sa podacima nedostaje, vidi `deploy/DEPLOY.md`). Na Windowsu sa WSL2: Docker Desktop mora imati uključenu WSL integraciju za vašu Ubuntu distribuciju, a korisnik mora biti u grupi `docker`.
 
 Za Android uređaj: računar i telefon u istoj mreži, Windows zaštitni zid mora propuštati port 8081; u aplikaciji se unosi `http://IP:8081`.
 
