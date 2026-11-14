@@ -44,10 +44,11 @@ export default function NalogDetail() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [visit, setVisit] = useState('');                    // date value (YYYY-MM-DD)
 
-  const load = useCallback(async (signal?: AbortSignal) => {
+  const load = useCallback(async (signal?: AbortSignal, clearError = true) => {
     try {
       const [n, h] = await Promise.all([nalogApi.getNalog(nalogId, signal), nalogApi.getNalogHistory(nalogId, signal)]);
-      setNalog(n); setHistory(h); setError('');
+      setNalog(n); setHistory(h);
+      if (clearError) setError('');
     } catch (e) {
       if (e instanceof NalogApiError) {
         if (e.status === 404) setNotFound(true);
@@ -100,8 +101,9 @@ export default function NalogDetail() {
       setNalog(await action());
       setHistory(await nalogApi.getNalogHistory(nalogId));
     } catch (e) {
-      setError(e instanceof NalogApiError ? e.message : t('nalogForm_unexpected'));
-      await load();                                   // show the server's current truth after a rejected move
+      const msg = e instanceof NalogApiError ? e.message : t('nalogForm_unexpected');
+      await load(undefined, false);                   // show the server's current truth after a rejected move without wiping error
+      setError(msg);
     } finally {
       epoch.current++;
       setBusy(false);
