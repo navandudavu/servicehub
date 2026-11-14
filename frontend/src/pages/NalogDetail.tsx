@@ -196,7 +196,7 @@ export default function NalogDetail() {
 
           <NalogPhotos nalogId={nalog.id} canUpload={nalog.status !== 'CANCELLED'} isAdmin={isAdmin} userId={user?.id ?? null} />
 
-          <NalogNotes nalogId={nalog.id} isAdmin={isAdmin} />
+          <NalogNotes nalogId={nalog.id} isAdmin={isAdmin} locked={nalog.status === 'COMPLETED'} />
 
           <Card title={t('nalogDetail_partsLabor')}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
