@@ -44,10 +44,11 @@ export default function NalogDetail() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [visit, setVisit] = useState('');                    // date value (YYYY-MM-DD)
 
-  const load = useCallback(async (signal?: AbortSignal) => {
+  const load = useCallback(async (signal?: AbortSignal, clearError = true) => {
     try {
       const [n, h] = await Promise.all([nalogApi.getNalog(nalogId, signal), nalogApi.getNalogHistory(nalogId, signal)]);
-      setNalog(n); setHistory(h); setError('');
+      setNalog(n); setHistory(h);
+      if (clearError) setError('');
     } catch (e) {
       if (e instanceof NalogApiError) {
         if (e.status === 404) setNotFound(true);
@@ -101,8 +102,7 @@ export default function NalogDetail() {
       setHistory(await nalogApi.getNalogHistory(nalogId));
     } catch (e) {
       const msg = e instanceof NalogApiError ? e.message : t('nalogForm_unexpected');
-      await load();                                   // show the server's current truth after a rejected move (load() clears the error banner...)
-      // ...so the message is set AFTER it. A 400 on a status move (closing conditions) gets a plain headline.
+      await load(undefined, false);                   // show the server's current truth after a rejected move without wiping error
       setError(rejectedPrefix && e instanceof NalogApiError && e.status === 400 ? `${rejectedPrefix} ${msg}` : msg);
     } finally {
       epoch.current++;

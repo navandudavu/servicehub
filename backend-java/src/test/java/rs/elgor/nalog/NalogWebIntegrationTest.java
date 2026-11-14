@@ -13,6 +13,12 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import java.time.Duration;
+import java.time.Instant;
+
+import rs.elgor.nalog.domain.ApplianceType;
+import rs.elgor.nalog.domain.PaymentType;
+
 @AutoConfigureMockMvc
 class NalogWebIntegrationTest extends AbstractIntegrationTest {
 
@@ -38,7 +44,7 @@ class NalogWebIntegrationTest extends AbstractIntegrationTest {
         """;
 
     private String valid() {
-        return VALID.formatted(rs.elgor.nalog.domain.ApplianceType.values()[0], rs.elgor.nalog.domain.PaymentType.values()[0]);
+        return VALID.formatted(ApplianceType.values()[0], PaymentType.values()[0]);
     }
 
     @Test
@@ -53,6 +59,14 @@ class NalogWebIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(header().exists("Location"))
                 .andExpect(jsonPath("$.total", is("4500.00")))        // 3750 + 20% VAT = 4500
                 .andExpect(jsonPath("$.status", is("DRAFT")));
+    }
+
+    @Test
+    void createPreservesWorkDone() throws Exception {
+        String body = valid().replace("\"diagnosis\":\"Ne hladi\"", "\"diagnosis\":\"Ne hladi\",\"workDone\":\"Zamenjen deo\"");
+        mvc.perform(post("/api/nalozi").with(admin()).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.workDone", is("Zamenjen deo")));
     }
 
     @Test
@@ -97,8 +111,8 @@ class NalogWebIntegrationTest extends AbstractIntegrationTest {
                         .andExpect(status().isOk());
             }
         }
-        String from = java.time.Instant.now().minusSeconds(3600).toString();
-        String to = java.time.Instant.now().plusSeconds(3600).toString();
+        String from = Instant.now().minusSeconds(3600).toString();
+        String to = Instant.now().plusSeconds(3600).toString();
 
         mvc.perform(get("/api/nalozi/reports/summary").with(admin()).param("from", from).param("to", to))
                 .andExpect(status().isOk())
@@ -113,15 +127,15 @@ class NalogWebIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void calendarAndStatsWorkAgainstRealPostgres() throws Exception {
-        java.time.Instant visit = java.time.Instant.now().plus(java.time.Duration.ofDays(2));
+        Instant visit = Instant.now().plus(Duration.ofDays(2));
         String scheduled = valid().replace("\"diagnosis\"", "\"scheduledAt\":\"" + visit + "\",\"diagnosis\"");
         mvc.perform(post("/api/nalozi").with(admin()).contentType(MediaType.APPLICATION_JSON).content(scheduled))
                 .andExpect(status().isCreated());
         mvc.perform(get("/api/nalozi/stats").with(admin())).andExpect(status().isOk());
         mvc.perform(get("/api/nalozi/stats").with(tech())).andExpect(status().isOk());
 
-        String from = java.time.Instant.now().toString();
-        String to = java.time.Instant.now().plus(java.time.Duration.ofDays(30)).toString();
+        String from = Instant.now().toString();
+        String to = Instant.now().plus(Duration.ofDays(30)).toString();
         mvc.perform(get("/api/nalozi/calendar").with(admin()).param("from", from).param("to", to))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)));

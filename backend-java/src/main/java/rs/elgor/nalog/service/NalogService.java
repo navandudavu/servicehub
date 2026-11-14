@@ -204,13 +204,13 @@ public class NalogService {
         }
         if (target == NalogStatus.COMPLETED) {
             if (photoRepository.countByNalogIdAndCategory(nalog.getId(), "before") == 0) {
-                throw NalogException.invalid("Nalog se ne može zatvoriti bez fotografije \"Pre\"");
+                throw NalogException.invalid("Uslovi nisu ispunjeni: Nalog se ne može zatvoriti bez fotografije \"Pre\"");
             }
             if (photoRepository.countByNalogIdAndCategory(nalog.getId(), "after") == 0) {
-                throw NalogException.invalid("Nalog se ne može zatvoriti bez fotografije \"Posle\"");
+                throw NalogException.invalid("Uslovi nisu ispunjeni: Nalog se ne može zatvoriti bez fotografije \"Posle\"");
             }
             if (nalog.getWorkDone() == null || nalog.getWorkDone().isBlank()) {
-                throw NalogException.invalid("Nalog se ne može zatvoriti bez opisa izvršenih radova");
+                throw NalogException.invalid("Uslovi nisu ispunjeni: Nalog se ne može zatvoriti bez opisa izvršenih radova");
             }
             nalog.setCompletedAt(Instant.now());
         }
