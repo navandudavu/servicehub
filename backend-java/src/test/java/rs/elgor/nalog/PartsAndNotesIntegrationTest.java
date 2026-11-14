@@ -97,7 +97,14 @@ class PartsAndNotesIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$[0].actorName", is("Admin")))
                 .andExpect(jsonPath("$[1].reason", is("INITIAL")));
 
-        mvc.perform(get("/api/parts/" + id + "/movements").with(tech2())).andExpect(status().isForbidden());
+        mvc.perform(get("/api/parts/" + id + "/movements").with(tech2())).andExpect(status().isOk());   // technicians read the history too
+        mvc.perform(post("/api/parts/" + id + "/stock").with(tech2()).contentType(JSON)
+                .content("{\"delta\":-2,\"note\":\"used on site\"}")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.stockQty", is(6)));
+        mvc.perform(get("/api/parts/" + id + "/movements").with(admin()))
+                .andExpect(jsonPath("$[0].actorName", is("Tehničar Dva")));                                  // ...and the ledger names him
+        mvc.perform(post("/api/parts/" + id + "/stock").with(tech2()).contentType(JSON)
+                .content("{\"delta\":-99}")).andExpect(status().isConflict());                              // still cannot go below zero
         mvc.perform(get("/api/parts/99999/movements").with(admin())).andExpect(status().isNotFound());
     }
 

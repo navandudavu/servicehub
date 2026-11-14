@@ -25,7 +25,7 @@ public class PartController {
         this.directory = directory;
     }
 
-    /** Inventory lookup for the nalog form. Technicians may search; they may not edit. */
+    /** Inventory list and lookup. Everybody signed in may read it; only admin-level creates or edits parts. */
     @GetMapping
     public PageResponse<PartResponse> search(
             @RequestParam(required = false) String q,
@@ -57,14 +57,14 @@ public class PartController {
         return new BulkDtos.BulkResult(partService.setActiveMany(request.ids(), request.active()));
     }
 
+    /** Any signed-in user: technicians see the stock history too (who changed what). */
     @GetMapping("/{id}/movements")
-    @PreAuthorize("hasRole('ADMIN')")
     public java.util.List<StockMovementView> movements(@PathVariable Long id) {
         return partService.movements(id);
     }
 
+    /** Any signed-in user may correct stock (every change is written to the ledger with the actor's name). */
     @PostMapping("/{id}/stock")
-    @PreAuthorize("hasRole('ADMIN')")
     public PartResponse adjustStock(@PathVariable Long id,
                                     @Valid @RequestBody StockAdjustRequest request,
                                     @AuthenticationPrincipal Jwt jwt) {
