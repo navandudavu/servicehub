@@ -58,7 +58,7 @@ class NalogEditDeleteIntegrationTest extends AbstractIntegrationTest {
     private NalogResponse create(List<PartLineInput> parts, Long assignTo) {
         return service.create(new CreateNalogRequest(null, someone(),
                 new ApplianceInput(ApplianceType.AIR_CONDITIONER, "Gorenje", "X1", "SN1"),
-                "Ne hladi", parts, new BigDecimal("1.50"), new BigDecimal("8000.00"), PaymentType.CASH, null, null, assignTo), null, admin);
+                "Ne hladi", null, parts, new BigDecimal("1.50"), new BigDecimal("8000.00"), PaymentType.CASH, null, null, assignTo), null, admin);
     }
 
     private UpdateNalogRequest edit(NalogResponse n, List<PartLineInput> parts, String hours) {

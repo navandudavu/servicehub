@@ -41,7 +41,7 @@ class NalogServiceIntegrationTest extends AbstractIntegrationTest {
         return new CreateNalogRequest(null,
                 new CustomerInput("Petar Petrović", "Cara Lazara 1", "Kruševac", "060 123 456", null, null),
                 new ApplianceInput(ApplianceType.values()[0], "Gorenje", "X1", "SN1"),
-                "Ne hladi", parts, new BigDecimal("1.50"), new BigDecimal("8000.00"), PaymentType.values()[0], status, null, assignTo);
+                "Ne hladi", null, parts, new BigDecimal("1.50"), new BigDecimal("8000.00"), PaymentType.values()[0], status, null, assignTo);
     }
 
     private CreateNalogRequest req(List<PartLineInput> parts) { return req(parts, null, null); }
@@ -172,6 +172,15 @@ class NalogServiceIntegrationTest extends AbstractIntegrationTest {
                 () -> service.changeStatus(n.id(), NalogStatus.DISPATCHED, tech2)).getStatus().value());   // no way back
         readyToClose(n.id());
         assertEquals(NalogStatus.COMPLETED, service.changeStatus(n.id(), NalogStatus.COMPLETED, tech2).status());
+    }
+
+    @Test
+    void workDoneGivenAtCreationIsSaved() {
+        CreateNalogRequest base = req(List.of());
+        CreateNalogRequest withWork = new CreateNalogRequest(null, base.newCustomer(), base.appliance(), base.diagnosis(),
+                "  Zamenjen kompresor ", base.partLines(), base.laborHours(), base.price(), base.paymentType(), null, null, null);
+        assertEquals("Zamenjen kompresor", service.create(withWork, null, admin).workDone());
+        assertNull(service.create(req(List.of()), null, admin).workDone());
     }
 
     @Test

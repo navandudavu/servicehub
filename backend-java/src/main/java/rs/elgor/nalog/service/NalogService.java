@@ -117,6 +117,7 @@ public class NalogService {
         nalog.setApplianceModel(blankToNull(req.appliance().model()));
         nalog.setSerialNumber(blankToNull(req.appliance().serialNumber()));
         nalog.setDiagnosis(req.diagnosis().trim());
+        nalog.setWorkDone(blankToNull(req.workDone()));
         nalog.setLaborHours(req.laborHours());
         nalog.setLaborRate(t.laborRate());
         nalog.setLaborTotal(t.laborTotal());

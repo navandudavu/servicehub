@@ -230,6 +230,7 @@ export function NalogForm({ isAdmin, onCreated, editing, onSaved }: Props) {
       },
       appliance: { type: applianceType, brand, model: model || null, serialNumber: serialNumber || null },
       diagnosis,
+      workDone: workDone.trim() || null,
       partLines: selected.map((s) => ({ partId: s.part.id, quantity: s.quantity })),
       laborHours,                                      // a string, never parsed to a float
       price: priceValue || null,
