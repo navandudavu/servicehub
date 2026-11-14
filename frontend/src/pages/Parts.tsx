@@ -78,7 +78,7 @@ export default function Parts() {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0, flex: 1 }}>{t('parts_title')}</h1>
-        <button className="btn" onClick={() => setEditing('new')}>{t('parts_new')}</button>
+        {isAdmin && <button className="btn" onClick={() => setEditing('new')}>{t('parts_new')}</button>}
       </div>
 
       <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
@@ -141,7 +141,7 @@ export default function Parts() {
                   </td>
                   <td style={{ padding: '0 14px' }}>{p.active ? t('parts_active') : t('parts_inactive')}</td>
                   <td style={{ whiteSpace: 'nowrap', padding: '0 14px', textAlign: 'right' }}>
-                    <button className="btn-secondary btn-xs" onClick={() => setEditing(p)}>{t('parts_edit')}</button>{' '}
+                    {isAdmin && <button className="btn-secondary btn-xs" onClick={() => setEditing(p)}>{t('parts_edit')}</button>}{' '}
                     <button className="btn-secondary btn-xs" onClick={() => setAdjusting(p)}>{t('parts_adjust')}</button>{' '}
                     <button className="btn-secondary btn-xs" onClick={() => setHistory(p)}>{t('parts_history')}</button>
                   </td>

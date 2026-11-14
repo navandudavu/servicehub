@@ -73,7 +73,7 @@ export default function App() {
         <RequireAuth><CarriedPrintPage /></RequireAuth>
       } />
       <Route path="/parts" element={
-        <RequireAuth><RequireAdmin><Layout><Parts /></Layout></RequireAdmin></RequireAuth>
+        <RequireAuth><Layout><Parts /></Layout></RequireAuth>
       } />
       <Route path="/reports" element={
         <RequireAuth><RequireAdmin><Layout><Reports /></Layout></RequireAdmin></RequireAuth>
