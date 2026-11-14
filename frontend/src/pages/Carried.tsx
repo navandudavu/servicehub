@@ -7,14 +7,17 @@ import Spinner from '../components/Spinner';
 import { useCurrentUser } from '../context/typedAuth';
 import { isAdminLevel } from '../context/roles';
 import { useLang } from '../i18n/typedLang';
-import type { CarriedView, TechnicianView } from '../types/nalog';
+import type { CarriedView, PartResponse, TechnicianView } from '../types/nalog';
 
 const MAX_ITEMS = 50;
 const QTY_RE = /^\d{1,7}$/;
 
 const errText = (e: unknown, fallback: string) => (e instanceof NalogApiError ? e.message : fallback);
 
-/** Zaduzivanje / razduzivanje: the list of material a technician carries. Not connected to the warehouse. */
+/**
+ * Zaduzivanje / razduzivanje: the list of material a technician carries. Items are picked from the Magacin catalog
+ * (read only: code and name are copied, stock is NOT changed), or typed freely for things that are not in Magacin.
+ */
 export default function Carried() {
   const { t } = useLang();
   const navigate = useNavigate();
@@ -31,6 +34,8 @@ export default function Carried() {
   const [name, setName] = useState('');
   const [qty, setQty] = useState('1');
   const [busy, setBusy] = useState(false);
+  const [magQuery, setMagQuery] = useState('');
+  const [magResults, setMagResults] = useState<PartResponse[]>([]);
   const [deleting, setDeleting] = useState<CarriedView | null>(null);
 
   useEffect(() => {
@@ -60,8 +65,26 @@ export default function Carried() {
     return () => ctrl.abort();
   }, [load]);
 
+  // Debounced Magacin lookup (same search as the nalog form, active parts only).
+  useEffect(() => {
+    if (magQuery.trim().length < 2) { setMagResults([]); return; }
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => {
+      nalogApi.searchParts(magQuery.trim(), { onlyActive: true, size: 8 }, ctrl.signal)
+        .then((page) => setMagResults(page.items))
+        .catch(() => { /* next keystroke retries */ });
+    }, 300);
+    return () => { clearTimeout(timer); ctrl.abort(); };
+  }, [magQuery]);
+
+  function pickPart(p: PartResponse) {
+    setSku(p.sku); setName(p.name);
+    setMagQuery(''); setMagResults([]);
+    setError('');
+  }
+
   function resetForm() {
-    setEditingId(null); setSku(''); setName(''); setQty('1');
+    setEditingId(null); setSku(''); setName(''); setQty('1'); setMagQuery(''); setMagResults([]);
   }
 
   function startEdit(c: CarriedView) {
@@ -124,6 +147,21 @@ export default function Carried() {
       )}
 
       <form onSubmit={save} className="card" style={{ padding: 14, marginBottom: 16, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div style={{ flexBasis: '100%', position: 'relative' }}>
+          <label style={{ fontSize: 12 }}>{t('carried_fromMagacin')}</label>
+          <input className="input" placeholder={t('carried_searchMagacin')} value={magQuery} onChange={(e) => setMagQuery(e.target.value)} />
+          {magResults.length > 0 && (
+            <div className="card" style={{ position: 'absolute', zIndex: 5, left: 0, right: 0, top: '100%', marginTop: 2, boxShadow: '0 4px 14px rgba(0,0,0,0.12)' }}>
+              {magResults.map((p) => (
+                <button key={p.id} type="button" onClick={() => pickPart(p)}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
+                  <strong>{p.name}</strong>
+                  <span style={{ color: 'var(--stone)', fontSize: 12.5 }}> · {p.sku} · {p.stockQty} {t('nalogForm_stockLabel')}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <div style={{ width: 130 }}>
           <label style={{ fontSize: 12 }}>{t('carried_sku')}</label>
           <input className="input" value={sku} maxLength={60} onChange={(e) => setSku(e.target.value)} />
