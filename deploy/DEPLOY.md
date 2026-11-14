@@ -158,3 +158,5 @@ git pull && docker compose up -d --build    # nova verzija; migracije baze idu s
 Pre svake nove verzije napravite `bash deploy/backup.sh`.
 
 Podaci su u `DATA_DIR` (`./data`): `postgres/` i `photos/` (`node/` je ostatak starog servera i moze se obrisati kad sve proverite). Ne brisati, ne ukljucivati u git.
+
+**Zastita od prazne baze:** `docker-compose.yml` ima `create_host_path: false` na `postgres/` i `photos/`. Ako folder nije vidljiv pri startu (na Windowsu: Docker Desktop podignut pre Ubuntu/WSL-a; na serveru: disk sa podacima jos nije montiran), kontejner **ne startuje** (`docker compose ps` pokazuje ponovljene pokusaje) umesto da tiho napravi praznu bazu. Kad folder postane vidljiv, sam krene. Ako se to desi: proverite `ls ./data/postgres` i `DATA_DIR`, nemojte brisati nista. Na Windowsu/WSL-u: prvo Ubuntu, pa Docker Desktop; pre gasenja `docker compose stop`. Posle svakog restarta proverite `select count(*) from nalog;`.
