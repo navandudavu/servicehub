@@ -39,7 +39,6 @@ export default function Dashboard() {
   const statusMap = Object.fromEntries(stats.byStatus.map((s) => [s.status, s.count]));
   const maxStatus = Math.max(...STATUS_ORDER.map((s) => statusMap[s] || 0), 1);
   const perTech = stats.openByTechnician || [];
-  const hoursByTech = stats.hoursByTechnician || [];
   const isAdmin = isAdminLevel(user.role);
 
   return (
@@ -107,28 +106,6 @@ export default function Dashboard() {
         )}
       </div>
 
-      {isAdmin && (
-        <div className="card" style={{ padding: 18 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--stone)', marginBottom: 14 }}>{t('dashboard_hoursByTech')}</div>
-          {hoursByTech.length === 0 ? (
-            <div style={{ fontSize: 13, color: 'var(--stone)' }}>{t('dashboard_noTechs')}</div>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 14 }}>
-              {hoursByTech.map((tech) => (
-                <div key={tech.name} className="card" style={{ padding: '12px 14px' }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 500, marginBottom: 6 }}>{tech.name === '-' ? t('nalogForm_unassigned') : tech.name}</div>
-                  <div style={{ fontSize: 20, fontWeight: 600, fontFamily: 'var(--mono)' }}>
-                    {t('dashboard_hoursTotal', tech.totalHours)}
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--stone)', marginTop: 2 }}>
-                    {t('dashboard_hoursThisWeek', tech.hoursThisWeek)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
