@@ -1,0 +1,2 @@
+docker compose exec -T postgres psql -U elgor -d elgor_nalog \
+  -c "UPDATE app_user SET email = 'admin@servicehub.local', password_hash = '$HASH', active = true, tokens_valid_after = extract(epoch from now())::bigint WHERE id = 1 RETURNING id, email, active;"
