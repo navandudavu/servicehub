@@ -3,7 +3,9 @@ package rs.elgor.nalog.service;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import rs.elgor.nalog.domain.AuthUser;
+import rs.elgor.nalog.domain.Nalog;
 import rs.elgor.nalog.domain.NalogNote;
+import rs.elgor.nalog.domain.NalogStatus;
 import rs.elgor.nalog.dto.NoteDtos.CreateNoteRequest;
 import rs.elgor.nalog.dto.NoteDtos.NoteView;
 import rs.elgor.nalog.repo.NalogNoteRepository;
@@ -13,7 +15,8 @@ import java.util.List;
 /**
  * Notes follow the nalog's access rule exactly (NalogService.loadAccessible): admin sees all,
  * a technician only the nalozi assigned to or created by them, everyone else gets 404.
- * Notes are allowed on any status, including COMPLETED/CANCELLED: they never touch the money.
+ * Notes can be added on any status except COMPLETED: a finished nalog is a closed record, so its konstatacije are
+ * read-only for everyone (adding and deleting both). CANCELLED still accepts them ("client cancelled").
  */
 @Service
 public class NalogNoteService {
@@ -28,6 +31,12 @@ public class NalogNoteService {
         this.nalogService = nalogService;
     }
 
+    private static void requireNotCompleted(Nalog nalog) {
+        if (nalog.getStatus() == NalogStatus.COMPLETED) {
+            throw NalogException.conflict("Konstatacije se ne mogu menjati na završenom nalogu");
+        }
+    }
+
     @Transactional(readOnly = true)
     public List<NoteView> list(Long nalogId, AuthUser actor) {
         nalogService.loadAccessible(nalogId, actor);
@@ -36,7 +45,7 @@ public class NalogNoteService {
 
     @Transactional(rollbackFor = Exception.class)
     public NoteView add(Long nalogId, CreateNoteRequest req, AuthUser actor) {
-        nalogService.loadAccessible(nalogId, actor);
+        requireNotCompleted(nalogService.loadAccessible(nalogId, actor));
         String body = req.body() == null ? "" : req.body().trim();
         if (body.isEmpty()) {
             throw NalogException.invalid("A note cannot be empty");
@@ -58,7 +67,7 @@ public class NalogNoteService {
         if (actor == null || !actor.isAdmin()) {
             throw NalogException.forbidden("Only an admin can delete a note");
         }
-        nalogService.loadAccessible(nalogId, actor);
+        requireNotCompleted(nalogService.loadAccessible(nalogId, actor));
         NalogNote n = notes.findByIdAndNalogId(noteId, nalogId)
                 .orElseThrow(() -> NalogException.notFound("Note " + noteId + " not found"));
         notes.delete(n);

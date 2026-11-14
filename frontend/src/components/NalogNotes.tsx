@@ -8,8 +8,8 @@ import type { NoteView } from '../types/nalog';
 
 const MAX_LEN = 2000;
 
-/** Append-only notes for one nalog. Anyone who can open the nalog can read and add; only an admin can delete. */
-export function NalogNotes({ nalogId, isAdmin }: { nalogId: number; isAdmin: boolean }) {
+/** Append-only notes for one nalog. Anyone who can open the nalog can read and add; only an admin can delete. `locked` (finished nalog) makes them read-only. */
+export function NalogNotes({ nalogId, isAdmin, locked = false }: { nalogId: number; isAdmin: boolean; locked?: boolean }) {
   const { t, lang } = useLang();
   const locale = lang === 'sr' ? 'sr-Latn-RS' : 'en-GB';
   const [notes, setNotes] = useState<NoteView[] | null>(null);
@@ -87,7 +87,7 @@ export function NalogNotes({ nalogId, isAdmin }: { nalogId: number; isAdmin: boo
         <div key={n.id} style={{ padding: '8px 0', borderBottom: i < notes.length - 1 ? '1px solid var(--border)' : 'none' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12, color: 'var(--stone)' }}>
             <span>{n.authorName} · {new Date(n.createdAt).toLocaleString(locale)}</span>
-            {isAdmin && (
+            {isAdmin && !locked && (
               <button className="btn-danger-outline btn-xs" onClick={() => setDeleteTarget(n)}>{t('notes_delete')}</button>
             )}
           </div>
@@ -95,7 +95,8 @@ export function NalogNotes({ nalogId, isAdmin }: { nalogId: number; isAdmin: boo
         </div>
       ))}
 
-      <div style={{ marginTop: 12 }}>
+      {locked && <div style={{ color: 'var(--stone)', fontSize: 12.5, marginTop: 8 }}>{t('notes_locked')}</div>}
+      {!locked && <div style={{ marginTop: 12 }}>
         <textarea className="input" rows={3} maxLength={MAX_LEN} value={text} placeholder={t('notes_placeholder')}
                   onChange={(e) => setText(e.target.value)} style={{ resize: 'vertical' }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, gap: 8 }}>
@@ -104,7 +105,7 @@ export function NalogNotes({ nalogId, isAdmin }: { nalogId: number; isAdmin: boo
             {busy ? t('notes_adding') : t('notes_add')}
           </button>
         </div>
-      </div>
+      </div>}
 
       {deleteTarget && (
         <ConfirmDialog message={t('notes_deleteConfirm')} busy={busy} onConfirm={remove} onCancel={() => setDeleteTarget(null)} />

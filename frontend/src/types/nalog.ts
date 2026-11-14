@@ -55,6 +55,7 @@ export interface CreateNalogRequest {
   newCustomer?: CustomerInput | null;
   appliance: ApplianceInput;
   diagnosis: string;
+  workDone?: string | null; // "Izvrseni radovi", optional until the nalog is closed
   partLines: PartLineInput[];
   laborHours: DecimalString; // "1.50", max 2 decimals
   price?: DecimalString | null; // typed by hand, net total; blank = 0.00 (on edit: unchanged)

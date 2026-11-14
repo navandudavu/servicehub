@@ -93,7 +93,7 @@ export default function NalogDetail() {
     setVisit(`${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`);
   }, [nalog?.scheduledAt]);
 
-  async function run(action: () => Promise<NalogResponse>) {
+  async function run(action: () => Promise<NalogResponse>, rejectedPrefix?: string) {
     if (busy) return;
     setBusy(true); setError('');
     epoch.current++;
@@ -103,7 +103,7 @@ export default function NalogDetail() {
     } catch (e) {
       const msg = e instanceof NalogApiError ? e.message : t('nalogForm_unexpected');
       await load(undefined, false);                   // show the server's current truth after a rejected move without wiping error
-      setError(msg);
+      setError(rejectedPrefix && e instanceof NalogApiError && e.status === 400 ? `${rejectedPrefix} ${msg}` : msg);
     } finally {
       epoch.current++;
       setBusy(false);
@@ -155,7 +155,7 @@ export default function NalogDetail() {
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {moves.map((s: NalogStatus) => (
-            <button key={s} className="btn" disabled={busy} onClick={() => run(() => nalogApi.changeStatus(nalog.id, s))}>
+            <button key={s} className="btn" disabled={busy} onClick={() => run(() => nalogApi.changeStatus(nalog.id, s), s === 'COMPLETED' ? t('nalogDetail_closeBlocked') : undefined)}>
               {t('nalogDetail_nextActions')}: {t(`nalogStatus_${s}`)}
             </button>
           ))}
@@ -198,7 +198,7 @@ export default function NalogDetail() {
 
           <NalogPhotos nalogId={nalog.id} canUpload={nalog.status !== 'CANCELLED'} isAdmin={isAdmin} userId={user?.id ?? null} />
 
-          <NalogNotes nalogId={nalog.id} isAdmin={isAdmin} />
+          <NalogNotes nalogId={nalog.id} isAdmin={isAdmin} locked={nalog.status === 'COMPLETED'} />
 
           <Card title={t('nalogDetail_partsLabor')}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>

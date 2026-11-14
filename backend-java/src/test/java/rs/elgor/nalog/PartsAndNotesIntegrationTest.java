@@ -175,6 +175,24 @@ class PartsAndNotesIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void konstatacijeAreReadOnlyOnACompletedNalog() throws Exception {
+        long n = createNalog(2L);
+        mvc.perform(post("/api/nalozi/" + n + "/notes").with(admin()).contentType(JSON).content(note("Pre zatvaranja")))
+                .andExpect(status().isCreated());
+        jdbc.update("UPDATE nalog SET status = 'COMPLETED' WHERE id = ?", n);
+        mvc.perform(post("/api/nalozi/" + n + "/notes").with(admin()).contentType(JSON).content(note("Posle zatvaranja")))
+                .andExpect(status().isConflict());
+        mvc.perform(post("/api/nalozi/" + n + "/notes").with(tech2()).contentType(JSON).content(note("Posle zatvaranja")))
+                .andExpect(status().isConflict());
+        mvc.perform(get("/api/nalozi/" + n + "/notes").with(admin())).andExpect(jsonPath("$", hasSize(1)));
+        mvc.perform(delete("/api/nalozi/" + n + "/notes/" + noteIdOf(n)).with(admin())).andExpect(status().isConflict());
+    }
+
+    private long noteIdOf(long nalogId) {
+        return jdbc.queryForObject("SELECT id FROM nalog_note WHERE nalog_id = ?", Long.class, nalogId);
+    }
+
+    @Test
     void notesStillWorkOnACancelledNalog() throws Exception {
         long n = createNalog(2L);
         mvc.perform(patch("/api/nalozi/" + n + "/status").with(admin()).contentType(JSON).content("{\"status\":\"CANCELLED\"}"))
