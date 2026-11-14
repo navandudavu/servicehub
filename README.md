@@ -80,7 +80,7 @@ Kontrolna tabla i Kalendar čitaju naloge; administrator zakazuje planirani dola
 
 ### Zaduživanje
 
-Kartica **Zaduživanje** (svi korisnici): lista materijala koji serviser nosi sa sobom (šifra nije obavezna, naziv, količina), najviše **50 stavki po serviseru**. Serviser vodi samo svoju listu, administrator i menadžer bilo čiju (biraju servisera). Nije povezano sa magacinom i ne pomera zalihe. Dugme *Štampaj* otvara dokument „Zaduženje materijala“ za štampu (API: `/api/carried`). Ista lista je i u Android aplikaciji, gde štampač otvara sistemski dijalog za štampu (A4 ili PDF).
+Kartica **Zaduživanje** (svi korisnici): lista materijala koji serviser nosi sa sobom (šifra nije obavezna, naziv, količina), najviše **50 stavki po serviseru**. Serviser vodi samo svoju listu, administrator i menadžer bilo čiju (biraju servisera). Stavku birate iz **magacina** (pretraga po nazivu ili šifri, samo aktivni delovi; kopiraju se šifra i naziv) ili je upisujete slobodno. Magacin se samo čita: zaduživanje **ne pomera zalihe**. Dugme *Štampaj* otvara dokument „Zaduženje materijala“ za štampu (API: `/api/carried`). Ista lista je i u Android aplikaciji, gde štampač otvara sistemski dijalog za štampu (A4 ili PDF).
 
 ## Uloge
 

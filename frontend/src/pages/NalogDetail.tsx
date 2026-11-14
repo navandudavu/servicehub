@@ -192,12 +192,6 @@ export default function NalogDetail() {
             <div style={{ whiteSpace: 'pre-wrap' }}>{nalog.diagnosis}</div>
           </Card>
 
-          <Card title={t('nalogDetail_workDone')}>
-            <div style={{ whiteSpace: 'pre-wrap' }}>{nalog.workDone || '—'}</div>
-          </Card>
-
-          <NalogPhotos nalogId={nalog.id} canUpload={nalog.status !== 'CANCELLED'} isAdmin={isAdmin} userId={user?.id ?? null} />
-
           <NalogNotes nalogId={nalog.id} isAdmin={isAdmin} locked={nalog.status === 'COMPLETED'} />
 
           <Card title={t('nalogDetail_partsLabor')}>
@@ -219,6 +213,12 @@ export default function NalogDetail() {
               </tbody>
             </table>
             <div style={{ marginTop: 10, color: 'var(--stone)', fontSize: 13 }}>{t('nalogForm_payment')}: {t(`payment_${nalog.paymentType}`)}</div>
+          </Card>
+
+          <NalogPhotos nalogId={nalog.id} canUpload={nalog.status !== 'CANCELLED'} isAdmin={isAdmin} userId={user?.id ?? null} />
+
+          <Card title={t('nalogDetail_workDone')}>
+            <div style={{ whiteSpace: 'pre-wrap' }}>{nalog.workDone || '—'}</div>
           </Card>
         </div>
 
