@@ -26,6 +26,9 @@ public record CreateNalogRequest(
 
         @NotBlank @Size(max = 4000) String diagnosis,
 
+        // "Izvrseni radovi". Optional; required only to close the nalog.
+        @Size(max = 4000) String workDone,
+
         @Valid @Size(max = 50) List<PartLineInput> partLines,
 
         // Sent as a string ("1.50") from the frontend; parsed straight into BigDecimal,

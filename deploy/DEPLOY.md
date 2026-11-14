@@ -20,7 +20,7 @@ git clone https://github.com/navandudavu/servicehub.git /opt/servicehub
 cd /opt/servicehub
 bash deploy/setup.sh        # pravi .env sa novim tajnama i fascikle sa pravim vlasnistvom
 nano .env                   # vidi dole
-docker compose up -d --build
+ALLOW_NEW_DATABASE=true docker compose up -d --build     # SAMO prva instalacija; posle toga uvek bez ALLOW_NEW_DATABASE
 docker compose ps           # sve 'healthy'/'running'
 ```
 
@@ -158,3 +158,5 @@ git pull && docker compose up -d --build    # nova verzija; migracije baze idu s
 Pre svake nove verzije napravite `bash deploy/backup.sh`.
 
 Podaci su u `DATA_DIR` (`./data`): `postgres/` i `photos/` (`node/` je ostatak starog servera i moze se obrisati kad sve proverite). Ne brisati, ne ukljucivati u git.
+
+**Zastita od prazne baze (pri SVAKOM startu):** Postgres kontejner pri svakom pokretanju (i pri automatskom restartu Dockera) proverava da u `DATA_DIR/postgres` vec postoji baza (`PG_VERSION`). Ako je folder prazan ili ga nema (disk sa podacima nije montiran, Docker Desktop podignut pre WSL-a, neko obrisao), start se **prekida** sa porukom `ABORT: no existing database...` i baza se NE pravi iznova; Java ceka zdravu bazu. Novu praznu bazu dozvoljava samo `ALLOW_NEW_DATABASE=true docker compose up -d` pri **prvoj** instalaciji. Takodje `create_host_path: false` na `postgres/` i `photos/` sprecava da Docker sam napravi prazan folder. Ako se prekid desi: proverite `ls ./data/postgres`, `DATA_DIR` i montiranje diska, nemojte brisati nista, pa `docker compose up -d`. Na Windowsu/WSL-u: prvo Ubuntu, pa Docker Desktop; pre gasenja `docker compose stop`. Posle svakog restarta proverite `select count(*) from nalog;`.

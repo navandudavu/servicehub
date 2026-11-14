@@ -57,9 +57,9 @@ Izmena: svi nalozi osim **otkazanih**; **završen** nalog sme da menja samo admi
 
 **Fotografije:** JPEG/PNG/WebP do 10 MB, vrsta se određuje po stvarnom sadržaju fajla (ne po imenu), čuvaju se na disku pod nasumičnim imenom (`NALOG_PHOTOS_DIR`), vide se samo uz prijavu. Kategorije: **Pre**, **Posle**, **Nalepnica / SN**, **Radni nalog** (slika papirnog naloga) i **Ostalo**. Brisanje: administrator ili osoba koja je otpremila. Android aplikacija pre slanja smanjuje sliku (najviše 1920 px, JPEG).
 
-**Automatsko osvežavanje:** stranica naloga (status, istorija, fotografije, beleške) osvežava se sama na 10 s, lista naloga na 20 s, a Pregled na 30 s, samo dok je kartica vidljiva (i odmah kad se vratite na nju). Ne radi se dok traje neka vaša radnja na stranici. Kalendar (prikazana nedelja) na 30 s. Android aplikacija se osvežava dugmetom na listi.
+**Automatsko osvežavanje:** stranica naloga (status, istorija, fotografije, konstatacije) osvežava se sama na 10 s, lista naloga na 20 s, a Pregled na 30 s, samo dok je kartica vidljiva (i odmah kad se vratite na nju). Ne radi se dok traje neka vaša radnja na stranici. Kalendar (prikazana nedelja) na 30 s. Android aplikacija se osvežava dugmetom na listi.
 
-**Konstatacije** (ranije „beleške“): slobodan tekst (do 2000 znakova, najviše 200 po nalogu) sa autorom i vremenom; vide ih svi koji vide nalog. Ne mogu se menjati (ispravka = nova beleška), briše ih samo administrator. Dozvoljene su i na završenom i otkazanom nalogu jer ne diraju novac. (U API-ju i bazi putanja je i dalje `/notes`.)
+**Konstatacije** (ranije „beleške“): slobodan tekst (do 2000 znakova, najviše 200 po nalogu) sa autorom i vremenom; vide ih svi koji vide nalog. Ne mogu se menjati (ispravka = nova beleška), briše ih samo administrator. Dozvoljene su na svakom nalogu osim **završenog**: tamo su samo za čitanje (dodavanje i brisanje daju 409, i administratoru); na otkazanom su i dalje dozvoljene. (U API-ju i bazi putanja je i dalje `/notes`.)
 
 ### Magacin delova (stranica *Magacin*, ranije *Delovi*, samo administrator)
 
@@ -125,7 +125,7 @@ Kartica **Zaduživanje** (svi korisnici): lista materijala koji serviser nosi sa
 | PATCH | `/api/nalozi/{id}/status` | po pravilu pristupa (otkazivanje: administrator; završavanje: vidi **Zatvaranje naloga**) |
 | PATCH | `/api/nalozi/{id}/assign`, `/{id}/schedule` | admin |
 | GET/POST/DELETE | `/api/nalozi/{id}/photos[/{photoId}/file]` | po pravilu pristupa |
-| GET/POST/DELETE | `/api/nalozi/{id}/notes[/{noteId}]` | čitanje/dodavanje po pravilu pristupa, brisanje admin |
+| GET/POST/DELETE | `/api/nalozi/{id}/notes[/{noteId}]` | čitanje/dodavanje po pravilu pristupa, brisanje admin; na završenom nalogu samo čitanje (409) |
 | GET | `/api/nalozi/customers`, `/technicians`, `/stats`, `/calendar` | po pravilu pristupa / admin |
 | GET | `/api/nalozi/reports/summary`, `/reports/export.csv` | admin |
 | GET | `/api/parts` | svi čitaju |
@@ -166,7 +166,7 @@ npm install
 npm run dev        # http://localhost:5173
 ```
 
-Ceo sistem se može podići i Dockerom (`docker compose up -d --build`, vidi `deploy/DEPLOY.md`). Na Windowsu sa WSL2: Docker Desktop mora imati uključenu WSL integraciju za vašu Ubuntu distribuciju, a korisnik mora biti u grupi `docker`.
+Ceo sistem se može podići i Dockerom (`docker compose up -d --build`; **samo prvi put** `ALLOW_NEW_DATABASE=true docker compose up -d --build`, posle toga Postgres odbija da pokrene novu praznu bazu ako folder sa podacima nedostaje, vidi `deploy/DEPLOY.md`). Na Windowsu sa WSL2: Docker Desktop mora imati uključenu WSL integraciju za vašu Ubuntu distribuciju, a korisnik mora biti u grupi `docker`.
 
 Za Android uređaj: računar i telefon u istoj mreži, Windows zaštitni zid mora propuštati port 8081; u aplikaciji se unosi `http://IP:8081`.
 
