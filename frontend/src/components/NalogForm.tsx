@@ -384,11 +384,6 @@ export function NalogForm({ isAdmin, onCreated, editing, onSaved }: Props) {
           </div>
         ))}
 
-        <div style={{ marginTop: 14, maxWidth: 220 }}>
-          <Field label={t('nalogForm_laborHours')} error={fe('laborHours')}>
-            <input className="input" inputMode="decimal" value={laborHours} onChange={(e) => setLaborHours(e.target.value)} />
-          </Field>
-        </div>
 
         <div style={{ marginTop: 6, maxWidth: 220 }}>
           <Field label={t('nalogForm_price')} error={fe('price')}>

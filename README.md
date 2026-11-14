@@ -61,9 +61,9 @@ Izmena: svi nalozi osim **otkazanih**; **završen** nalog sme da menja samo admi
 
 **Konstatacije** (ranije „beleške“): slobodan tekst (do 2000 znakova, najviše 200 po nalogu) sa autorom i vremenom; vide ih svi koji vide nalog. Ne mogu se menjati (ispravka = nova beleška), briše ih samo administrator. Dozvoljene su na svakom nalogu osim **završenog**: tamo su samo za čitanje (dodavanje i brisanje daju 409, i administratoru); na otkazanom su i dalje dozvoljene. (U API-ju i bazi putanja je i dalje `/notes`.)
 
-### Magacin delova (stranica *Magacin*, ranije *Delovi*, samo administrator)
+### Magacin delova (stranica *Magacin*, ranije *Delovi*)
 
-Lista sa pretragom i prikazom ukinutih delova, novi deo, izmena (naziv, cena, aktivan), korekcija stanja sa napomenom i **istorija stanja** (ko je, kada i zašto promenio: početno stanje, ručna korekcija, utrošeno na nalogu, nalog otkazan / izmenjen / obrisan). Promena cene važi samo za nove naloge. Ukinut deo se ne može dodati na novi nalog. Serviseri pretražuju delove samo kroz formular naloga.
+Lista sa pretragom i prikazom ukinutih delova, novi deo, izmena (naziv, cena, aktivan), korekcija stanja sa napomenom i **istorija stanja** (ko je, kada i zašto promenio: početno stanje, ručna korekcija, utrošeno na nalogu, nalog otkazan / izmenjen / obrisan). Promena cene važi samo za nove naloge. Ukinut deo se ne može dodati na novi nalog. **Svi prijavljeni (i serviseri) vide ceo magacin, koriguju stanje i vide istoriju stanja** (svaka korekcija se upisuje sa imenom onoga ko je uradio; stanje ne može ispod nule). Novi deo, izmenu dela (naziv, cena, aktivan) i grupno aktiviranje rade samo administrator i menadžer.
 
 ### Podsetnik za status
 
@@ -86,7 +86,7 @@ Kartica **Zaduživanje** (svi korisnici): lista materijala koji serviser nosi sa
 
 - **Administrator**: sve, uključujući karticu *Tim* (nalozi korisnika, uloge, lozinke).
 - **Menadžer**: sve što i administrator (nalozi, delovi, klijenti, izveštaji, brisanja), osim *Tima*. Server odbija sve izmene `/api/users` za menadžera, a kartica se ne prikazuje.
-- **Serviser**: samo svoji (dodeljeni) nalozi; ne pravi naloge, nema stranice *Magacin* ni *Izveštaji*; vodi svoje zaduženje.
+- **Serviser**: samo svoji (dodeljeni) nalozi; ne pravi naloge, nema stranicu *Izveštaji*; vidi ceo *Magacin* i koriguje stanje (ne pravi i ne menja delove); vodi svoje zaduženje.
 
 ## API
 
@@ -129,8 +129,9 @@ Kartica **Zaduživanje** (svi korisnici): lista materijala koji serviser nosi sa
 | GET | `/api/nalozi/customers`, `/technicians`, `/stats`, `/calendar` | po pravilu pristupa / admin |
 | GET | `/api/nalozi/reports/summary`, `/reports/export.csv` | admin |
 | GET | `/api/parts` | svi čitaju |
-| POST/PUT | `/api/parts`, `/api/parts/{id}`, `/api/parts/{id}/stock` | admin |
-| GET | `/api/parts/{id}/movements` | admin – istorija stanja |
+| POST/PUT | `/api/parts`, `/api/parts/{id}` | administrator / menadžer |
+| POST | `/api/parts/{id}/stock` | svi prijavljeni (korekcija stanja, upisuje se ko je uradio) |
+| GET | `/api/parts/{id}/movements` | svi prijavljeni – istorija stanja |
 | GET | `/api/carried` (`?technicianId=` samo administrator) | prijavljen – svoja lista zaduženja |
 | POST | `/api/carried` | prijavljen (administrator može za drugog servisera); najviše 50 stavki po serviseru |
 | PUT, DELETE | `/api/carried/{id}` | vlasnik liste ili administrator |
