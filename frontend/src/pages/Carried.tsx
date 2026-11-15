@@ -65,12 +65,12 @@ export default function Carried() {
     return () => ctrl.abort();
   }, [load]);
 
-  // Debounced Magacin lookup (same search as the nalog form, active parts only).
+  // Magacin list under the form: the first parts are shown straight away, typing only narrows them down.
+  // Debounced, same search as the nalog form, active parts only.
   useEffect(() => {
-    if (magQuery.trim().length < 2) { setMagResults([]); return; }
     const ctrl = new AbortController();
     const timer = setTimeout(() => {
-      nalogApi.searchParts(magQuery.trim(), { onlyActive: true, size: 8 }, ctrl.signal)
+      nalogApi.searchParts(magQuery.trim(), { onlyActive: true, size: 30 }, ctrl.signal)
         .then((page) => setMagResults(page.items))
         .catch(() => { /* next keystroke retries */ });
     }, 300);
@@ -79,12 +79,12 @@ export default function Carried() {
 
   function pickPart(p: PartResponse) {
     setSku(p.sku); setName(p.name);
-    setMagQuery(''); setMagResults([]);
+    setMagQuery('');
     setError('');
   }
 
   function resetForm() {
-    setEditingId(null); setSku(''); setName(''); setQty('1'); setMagQuery(''); setMagResults([]);
+    setEditingId(null); setSku(''); setName(''); setQty('1'); setMagQuery('');
   }
 
   function startEdit(c: CarriedView) {
@@ -147,11 +147,11 @@ export default function Carried() {
       )}
 
       <form onSubmit={save} className="card" style={{ padding: 14, marginBottom: 16, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-        <div style={{ flexBasis: '100%', position: 'relative' }}>
+        <div style={{ flexBasis: '100%' }}>
           <label style={{ fontSize: 12 }}>{t('carried_fromMagacin')}</label>
           <input className="input" placeholder={t('carried_searchMagacin')} value={magQuery} onChange={(e) => setMagQuery(e.target.value)} />
           {magResults.length > 0 && (
-            <div className="card" style={{ position: 'absolute', zIndex: 5, left: 0, right: 0, top: '100%', marginTop: 2, boxShadow: '0 4px 14px rgba(0,0,0,0.12)' }}>
+            <div className="card" style={{ marginTop: 4, maxHeight: 240, overflowY: 'auto' }}>
               {magResults.map((p) => (
                 <button key={p.id} type="button" onClick={() => pickPart(p)}
                         style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
