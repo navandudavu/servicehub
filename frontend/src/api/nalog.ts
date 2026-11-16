@@ -1,4 +1,5 @@
 import { createNalogClient } from './nalogApi';
+import { clearSession, refreshSession } from './session';
 
 /**
  * The one nalog API client for the whole app. It reuses the token the existing
@@ -13,9 +14,11 @@ export const nalogApi = createNalogClient({
     const token = localStorage.getItem('servicehub_token');
     return token ? `Bearer ${token}` : null;
   },
+  // 'unavailable' (server unreachable) is not a refusal: keep the session, the request just fails this time
+  refreshSession: async () => (await refreshSession()) === 'ok',
   onUnauthorized: () => {
     // Same behaviour as an expired session anywhere else in the app.
-    localStorage.removeItem('servicehub_token');
+    clearSession();
     if (window.location.pathname !== '/login') window.location.assign('/login');
   },
 });
