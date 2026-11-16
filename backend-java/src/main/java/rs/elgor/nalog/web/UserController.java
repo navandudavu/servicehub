@@ -7,6 +7,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import rs.elgor.nalog.dto.AccountDtos.*;
+import rs.elgor.nalog.service.RefreshTokenService;
 import rs.elgor.nalog.service.UserAdminService;
 import rs.elgor.nalog.service.UserDirectoryService;
 
@@ -20,10 +21,12 @@ public class UserController {
 
     private final UserAdminService users;
     private final UserDirectoryService directory;
+    private final RefreshTokenService refreshTokens;
 
-    public UserController(UserAdminService users, UserDirectoryService directory) {
+    public UserController(UserAdminService users, UserDirectoryService directory, RefreshTokenService refreshTokens) {
         this.users = users;
         this.directory = directory;
+        this.refreshTokens = refreshTokens;
     }
 
     /** Everybody logged in may list the team (names and phones), the web app shows who is who. */
@@ -61,8 +64,10 @@ public class UserController {
     /** Self-service. Every other session is logged out; this response carries a fresh token for the caller. */
     @PatchMapping("/me/password")
     public ChangePasswordResponse changeMyPassword(@RequestBody ChangePasswordRequest request, @AuthenticationPrincipal Jwt jwt) {
-        String token = users.changeMyPassword(directory.resolve(jwt).id(), request.currentPassword(), request.newPassword());
-        return new ChangePasswordResponse(true, token);
+        long id = directory.resolve(jwt).id();
+        String token = users.changeMyPassword(id, request.currentPassword(), request.newPassword());
+        // every older refresh token died with the password change, so this device gets a new one
+        return new ChangePasswordResponse(true, token, refreshTokens.issueFor(id));
     }
 
     @DeleteMapping("/{id}")
