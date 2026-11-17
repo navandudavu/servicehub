@@ -15,14 +15,16 @@ public class AuthService {
     private final AppUserRepository users;
     private final JwtIssuer issuer;
     private final LoginThrottle throttle;
+    private final RefreshTokenService refreshTokens;
     private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(10);
     /** Checked when the email is unknown, so "no such user" takes as long as "wrong password". */
     private final String dummyHash = encoder.encode("not-a-real-password");
 
-    public AuthService(AppUserRepository users, JwtIssuer issuer, LoginThrottle throttle) {
+    public AuthService(AppUserRepository users, JwtIssuer issuer, LoginThrottle throttle, RefreshTokenService refreshTokens) {
         this.users = users;
         this.issuer = issuer;
         this.throttle = throttle;
+        this.refreshTokens = refreshTokens;
     }
 
     public LoginResponse login(String email, String password, String ip) {
@@ -48,7 +50,7 @@ public class AuthService {
             throw new NalogException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
         }
         throttle.success(ip, trimmed);
-        return new LoginResponse(issuer.issue(u), UserView.from(u));
+        return new LoginResponse(issuer.issue(u), UserView.from(u), refreshTokens.issueFor(u.getId()));
     }
 
     public UserView me(long userId) {

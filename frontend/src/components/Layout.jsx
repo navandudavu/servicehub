@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../i18n/LangContext';
 import { api } from '../api/client';
+import { storeSession } from '../api/session';
 import Modal from './Modal';
 import { isAdminLevel, isOwner } from '../context/roles';
 
@@ -135,7 +136,7 @@ function ChangePasswordModal({ onClose }) {
     try {
       const changed = await api.users.changeMyPassword(currentPassword, newPassword);
       // the server logs every other session out and hands this one a fresh token
-      if (changed?.token) localStorage.setItem('servicehub_token', changed.token);
+      if (changed?.token) storeSession(changed.token, changed.refreshToken);
       setDone(true);
     } catch (err) {
       setError(err.message);

@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 import rs.elgor.nalog.dto.AccountDtos.*;
 import rs.elgor.nalog.service.AuthService;
 import rs.elgor.nalog.service.PushTokenService;
+import rs.elgor.nalog.service.RefreshTokenService;
 import rs.elgor.nalog.service.UserDirectoryService;
 
 import java.time.Instant;
@@ -20,11 +21,14 @@ public class AuthController {
     private final AuthService auth;
     private final PushTokenService pushTokens;
     private final UserDirectoryService directory;
+    private final RefreshTokenService refreshTokens;
 
-    public AuthController(AuthService auth, PushTokenService pushTokens, UserDirectoryService directory) {
+    public AuthController(AuthService auth, PushTokenService pushTokens, UserDirectoryService directory,
+                          RefreshTokenService refreshTokens) {
         this.auth = auth;
         this.pushTokens = pushTokens;
         this.directory = directory;
+        this.refreshTokens = refreshTokens;
     }
 
     @GetMapping("/api/health")
@@ -36,6 +40,19 @@ public class AuthController {
     @PostMapping("/api/auth/login")
     public LoginResponse login(@RequestBody LoginRequest request, HttpServletRequest http) {
         return auth.login(request.email(), request.password(), http.getRemoteAddr());
+    }
+
+    /** Public (the login token has usually expired by now): the refresh token itself is the credential. */
+    @PostMapping("/api/auth/refresh")
+    public RefreshResponse refresh(@RequestBody RefreshRequest request) {
+        return refreshTokens.refresh(request.refreshToken());
+    }
+
+    /** Public: logging out. The refresh token stops working; the login token simply expires. */
+    @PostMapping("/api/auth/logout")
+    public ResponseEntity<Void> logout(@RequestBody RefreshRequest request) {
+        refreshTokens.revoke(request.refreshToken());
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/api/auth/me")
