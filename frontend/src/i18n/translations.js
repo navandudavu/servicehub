@@ -271,7 +271,9 @@ export const translations = {
     calendar_prev: '← Prev',
     calendar_today: 'Today',
     calendar_next: 'Next →',
-    calendar_noJobs: "No scheduled work orders this week. Set the planned visit on a work order's page.",
+    calendar_close: 'Close',
+    calendar_dayEmpty: 'No work orders on this day.',
+    calendar_noJobs: "No scheduled work orders this month. Set the planned visit on a work order's page.",
 
     common_cancel: 'Cancel',
     common_close: 'Close',
@@ -786,7 +788,9 @@ export const translations = {
     calendar_prev: '← Prethodna',
     calendar_today: 'Danas',
     calendar_next: 'Sledeća →',
-    calendar_noJobs: 'Nema zakazanih radnih naloga ove nedelje. Zakažite na stranici naloga.',
+    calendar_close: 'Zatvori',
+    calendar_dayEmpty: 'Nema naloga za ovaj dan.',
+    calendar_noJobs: 'Nema zakazanih radnih naloga ovog meseca. Zakažite na stranici naloga.',
 
     common_cancel: 'Otkaži',
     common_close: 'Zatvori',
