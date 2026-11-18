@@ -1,3 +1,5 @@
+import { refreshSession } from './session';
+
 // Accounts only (login, who am I, team). Everything else (nalozi, customers, parts, reports) goes through nalogApi.
 const BASE = '/api';
 
@@ -5,7 +7,7 @@ function getToken() {
   return localStorage.getItem('servicehub_token');
 }
 
-async function request(path, { method = 'GET', body } = {}) {
+async function request(path, { method = 'GET', body } = {}, retried = false) {
   const headers = { 'Content-Type': 'application/json' };
   const token = getToken();
   if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -21,6 +23,11 @@ async function request(path, { method = 'GET', body } = {}) {
     data = await res.json();
   } catch {
     // empty body, fine
+  }
+
+  // login token expired: trade the refresh token for a new one and repeat the request once
+  if (res.status === 401 && !retried && !path.startsWith('/auth/')) {
+    if ((await refreshSession()) === 'ok') return request(path, { method, body }, true);
   }
 
   if (!res.ok) {

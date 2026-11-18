@@ -24,12 +24,14 @@ export interface NalogClientOptions {
   getAuthorization: () => string | null;
   /** Called on 401 so the app can send the user back to login. */
   onUnauthorized?: () => void;
+  /** Called on the first 401 of a request: true means new tokens are stored and the request is repeated once. */
+  refreshSession?: () => Promise<boolean>;
 }
 
 const MAX_ATTEMPTS = 3;
 const REQUEST_TIMEOUT_MS = 15_000;
 
-export function createNalogClient({ baseURL, getAuthorization, onUnauthorized }: NalogClientOptions) {
+export function createNalogClient({ baseURL, getAuthorization, onUnauthorized, refreshSession }: NalogClientOptions) {
   const http: AxiosInstance = axios.create({ baseURL, timeout: REQUEST_TIMEOUT_MS });
 
   /**
@@ -50,6 +52,7 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized }:
             timeout?: number; responseType?: 'json' | 'blob' },
   ): Promise<T> {
     let lastError: NalogApiError | null = null;
+    let refreshed = false;
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
         const auth = getAuthorization();
@@ -61,6 +64,11 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized }:
         return res.data;
       } catch (err) {
         lastError = toNalogApiError(err);
+        if (lastError.status === 401 && !refreshed && refreshSession) {
+          // a 401 means nothing was processed, so repeating is safe for every method (stock POSTs included)
+          refreshed = true;
+          if (await refreshSession()) { attempt--; continue; }
+        }
         if (lastError.status === 401) onUnauthorized?.();
         const canRetry = opts.safeToRetry && lastError.retryable && attempt < MAX_ATTEMPTS && !opts.signal?.aborted;
         if (!canRetry) break;

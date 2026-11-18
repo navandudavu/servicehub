@@ -195,8 +195,10 @@ public class UserAdminService {
         return users.findById(id).orElseThrow(() -> NalogException.notFound("User not found"));
     }
 
-    private static void revoke(AppUser u) {
+    private void revoke(AppUser u) {
         u.setTokensValidAfter(Instant.now().getEpochSecond());
+        // refresh tokens too, right now (a token made in the same second as the change would otherwise slip through)
+        em.createNativeQuery("delete from refresh_token where user_id = ?1").setParameter(1, u.getId()).executeUpdate();
     }
 
     private long nextId() {

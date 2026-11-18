@@ -15,7 +15,11 @@ public final class AccountDtos {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record LoginRequest(String email, String password) {}
 
-    public record LoginResponse(String token, UserView user) {}
+    public record LoginResponse(String token, UserView user, String refreshToken) {}
+
+    public record RefreshRequest(String refreshToken) {}
+
+    public record RefreshResponse(String token, String refreshToken, UserView user) {}
 
     public record UserView(Long id, String name, String email, String role, String phone, boolean active) {
         public static UserView from(AppUser u) {
@@ -40,7 +44,7 @@ public final class AccountDtos {
     public record ChangePasswordRequest(@JsonProperty("current_password") String currentPassword,
                                         @JsonProperty("new_password") String newPassword) {}
 
-    public record ChangePasswordResponse(boolean ok, String token) {}
+    public record ChangePasswordResponse(boolean ok, String token, String refreshToken) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record PushTokenRequest(String token, String platform) {}

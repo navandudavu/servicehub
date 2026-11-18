@@ -95,6 +95,8 @@ Dve kartice, **Zaduživanje** i **Razduživanje**, isti izgled kao u starom prog
 | Metoda | Putanja | Ko |
 |---|---|---|
 | POST | `/api/auth/login` | svi (javno; ograničenje pokušaja) |
+| POST | `/api/auth/refresh` | javno (refresh token je kredencijal) – novi token + novi refresh token |
+| POST | `/api/auth/logout` | javno – poništava refresh token |
 | GET | `/api/auth/me` | prijavljen |
 | POST | `/api/auth/token` | prijavljen – FCM token telefona |
 | GET | `/api/health` | javno |
@@ -217,6 +219,7 @@ Nova instalacija ovo ne traži.
 
 ### Sesije i tokeni
 
+- **Ostajanje prijavljen:** pored tokena za prijavu (12 h) server izdaje **refresh token** (30 dana, jednokratan, v. `V12__refresh_tokens.sql`). Kad token istekne, veb i Android ga automatski menjaju za novi par (`POST /api/auth/refresh`), pa ko koristi aplikaciju bar jednom mesečno ostaje prijavljen. U bazi se čuva samo SHA-256 heš. Refresh token se odbija ako je nalog deaktiviran/obrisan ili je lozinka promenjena; promena/reset lozinke i deaktivacija ga brišu odmah. Odjava (`POST /api/auth/logout`) ga poništava.
 - Server pri svakom zahtevu čita korisnika iz baze: deaktivacija, brisanje i promena uloge važe **odmah** (sledeći zahtev dobija 401, a web aplikacija vraća na prijavu).
 - **Promena lozinke** (sopstvena ili reset od administratora) i **deaktivacija** poništavaju sve ranije izdate tokene tog korisnika (`app_user.tokens_valid_after`). Pri sopstvenoj promeni lozinke server vraća svež token, pa korisnik ostaje prijavljen na tom uređaju, a svi ostali se odjavljuju. Ponovna aktivacija ne oživljava stare tokene.
 - Android aplikacija posle poništavanja tokena prikazuje „Sesija je istekla“ i treba se ponovo prijaviti (odjava i prijava).

@@ -39,7 +39,7 @@ import java.util.Set;
 public class SecurityConfig {
 
     /** Reachable without a token. A stale token in the header of a login request must not break the login either. */
-    private static final Set<String> PUBLIC_PATHS = Set.of("/api/auth/login", "/api/health");
+    private static final Set<String> PUBLIC_PATHS = Set.of("/api/auth/login", "/api/auth/refresh", "/api/auth/logout", "/api/health");
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationConverter converter,
