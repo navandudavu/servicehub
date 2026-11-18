@@ -1,5 +1,8 @@
-import type { ApplianceType, NalogResponse, NalogStatus, PaymentType } from '../types/nalog';
+import type { NalogResponse, NalogStatus, NoteView, PaymentType } from '../types/nalog';
 import { formatMoney } from '../print/formatMoney';
+
+// A device type an admin added is printed by its own name.
+const applianceName = (type: string) => APPLIANCE_SR[type] ?? type;
 import type { CompanyInfo } from '../print/company';
 
 /**
@@ -11,7 +14,7 @@ import type { CompanyInfo } from '../print/company';
  * separate piece of work that needs the accountant's rules.
  */
 
-const APPLIANCE_SR: Record<ApplianceType, string> = {
+const APPLIANCE_SR: Record<string, string> = {
   AIR_CONDITIONER: 'Klima uređaj', REFRIGERATOR: 'Frižider', FREEZER: 'Zamrzivač',
   WASHING_MACHINE: 'Veš mašina', DRYER: 'Mašina za sušenje', DISHWASHER: 'Mašina za sudove',
   OVEN: 'Rerna', STOVE: 'Šporet', WATER_HEATER: 'Grejač vode', BOILER: 'Bojler', OTHER: 'Ostalo',
@@ -47,16 +50,36 @@ export const PRINT_CSS = `
   .nalog-print .ack { margin-top: 10mm; font-size: 11px; }
   .nalog-print .sign { display: grid; grid-template-columns: 1fr 1fr; gap: 30mm; margin-top: 22mm; text-align: center; }
   .nalog-print .sign div { border-top: 1px solid #000; padding-top: 4px; }
+  .nalog-print.sheet-break { break-after: page; page-break-after: always; }
+  .nalog-print .copy { text-align: right; font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
   .nalog-print footer { margin-top: 12mm; font-size: 10px; color: #5C6B75; }
   @media print { .no-print { display: none !important; } }
 `;
 
-export function NalogPrint({ nalog, company, revers = false }: { nalog: NalogResponse; company: CompanyInfo; revers?: boolean }) {
+/**
+ * A nalog is always printed twice, one page each: the technician's copy and the customer's copy (both signed).
+ * The revers (device taken into the workshop) stays a single page.
+ */
+export function NalogPrint({ nalog, notes, company, revers = false }: { nalog: NalogResponse; notes: NoteView[]; company: CompanyInfo; revers?: boolean }) {
+  if (revers) {
+    return <div><style>{PRINT_CSS}</style><NalogSheet nalog={nalog} notes={notes} company={company} revers /></div>;
+  }
+  return (
+    <div>
+      <style>{PRINT_CSS}</style>
+      <NalogSheet nalog={nalog} notes={notes} company={company} copy="Primerak servisera" pageBreak />
+      <NalogSheet nalog={nalog} notes={notes} company={company} copy="Primerak korisnika" />
+    </div>
+  );
+}
+
+function NalogSheet({ nalog, notes, company, revers = false, copy, pageBreak = false }:
+  { nalog: NalogResponse; notes: NoteView[]; company: CompanyInfo; revers?: boolean; copy?: string; pageBreak?: boolean }) {
   const c = nalog.customer;
   const a = nalog.appliance;
   return (
-    <div className="nalog-print">
-      <style>{PRINT_CSS}</style>
+    <div className={`nalog-print${pageBreak ? ' sheet-break' : ''}`}>
+      {copy && <div className="copy">{copy}</div>}
 
       <div className="bar">
         <div>
@@ -88,7 +111,7 @@ export function NalogPrint({ nalog, company, revers = false }: { nalog: NalogRes
         </div>
         <div className="box">
           <h2>Uređaj</h2>
-          <strong>{APPLIANCE_SR[a.type]}</strong> — {a.brand}{a.model ? ` ${a.model}` : ''}<br />
+          <strong>{applianceName(a.type)}</strong> — {a.brand}{a.model ? ` ${a.model}` : ''}<br />
           Serijski broj: {a.serialNumber ?? '—'}<br />
           Serviser: {nalog.assignedToName ?? '—'}
         </div>
@@ -103,27 +126,18 @@ export function NalogPrint({ nalog, company, revers = false }: { nalog: NalogRes
         <div style={{ marginBottom: 14 }}>Uređaj je preuzet u servis dana {fmtDate(nalog.createdAt)}.</div>
       ) : (
         <>
-      {nalog.workDone && (
+      {notes.length > 0 && (
         <div className="box" style={{ marginBottom: 14 }}>
-          <h2>Izvršeni radovi</h2>
-          <div style={{ whiteSpace: 'pre-wrap' }}>{nalog.workDone}</div>
+          <h2>Konstatacija / izvršeni radovi</h2>
+          {notes.map((n) => <div key={n.id} style={{ whiteSpace: 'pre-wrap' }}>{n.body}</div>)}
         </div>
       )}
 
-      {nalog.partLines.length > 0 && (
-        <table>
-          <thead>
-            <tr><th>Ugrađeni delovi</th><th className="num">Kol.</th></tr>
-          </thead>
-          <tbody>
-            {nalog.partLines.map((l) => (
-              <tr key={l.partId}>
-                <td>{l.name} <span className="muted">({l.sku})</span></td>
-                <td className="num">{l.quantity}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {nalog.status === 'CANCELLED' && (
+        <div className="box" style={{ marginBottom: 14 }}>
+          <h2>Razlog otkazivanja</h2>
+          <div style={{ whiteSpace: 'pre-wrap' }}>{nalog.cancelReason ?? '—'}</div>
+        </div>
       )}
 
       <table className="totals">

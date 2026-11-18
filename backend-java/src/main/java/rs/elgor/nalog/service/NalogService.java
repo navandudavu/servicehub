@@ -26,9 +26,9 @@ public class NalogService {
 
     private final NalogRepository nalogRepository;
     private final CustomerRepository customerRepository;
-    private final PartRepository partRepository;
     private final NalogStatusHistoryRepository historyRepository;
-    private final StockMovementRepository movementRepository;
+    private final NalogNoteRepository noteRepository;
+    private final ApplianceTypeService applianceTypes;
     private final AppUserRepository userRepository;
     private final PricingCalculator pricing;
     private final NalogPushNotifier pushNotifier;
@@ -39,18 +39,18 @@ public class NalogService {
 
     public NalogService(NalogRepository nalogRepository,
                         CustomerRepository customerRepository,
-                        PartRepository partRepository,
                         NalogStatusHistoryRepository historyRepository,
-                        StockMovementRepository movementRepository,
+                        NalogNoteRepository noteRepository,
+                        ApplianceTypeService applianceTypes,
                         AppUserRepository userRepository,
                         PricingCalculator pricing,
                         NalogPushNotifier pushNotifier,
                         NalogPhotoRepository photoRepository) {
         this.nalogRepository = nalogRepository;
         this.customerRepository = customerRepository;
-        this.partRepository = partRepository;
         this.historyRepository = historyRepository;
-        this.movementRepository = movementRepository;
+        this.noteRepository = noteRepository;
+        this.applianceTypes = applianceTypes;
         this.userRepository = userRepository;
         this.pricing = pricing;
         this.pushNotifier = pushNotifier;
@@ -62,10 +62,8 @@ public class NalogService {
     // ========================================================================
 
     /**
-     * RULE B. ONE database transaction covers: (optional) customer insert, part stock
-     * decrement + ledger rows, nalog insert, part-line inserts, status history.
-     * Any exception - validation, out of stock, DB constraint, timeout - rolls ALL of it
-     * back. There is no state where stock was reduced but the nalog doesn't exist.
+     * RULE B. ONE database transaction covers: (optional) customer insert, nalog insert, status history.
+     * Any exception - validation, DB constraint, timeout - rolls ALL of it back.
      *
      * rollbackFor = Exception.class: Spring only rolls back on unchecked exceptions by
      * default; this makes checked ones safe too.
@@ -100,10 +98,9 @@ public class NalogService {
         // 3. Customer: reuse an existing one OR create one in this same transaction.
         Customer customer = resolveCustomer(req);
 
-        // 4. Parts: merge duplicates, lock rows, validate stock, snapshot prices, decrement.
+        // 4. Device type: one of the built-in ones or one the admin added.
+        applianceTypes.requireKnown(req.appliance().type());
         Nalog nalog = new Nalog();
-        List<NalogPartLine> lines = buildLines(req.partLines(), true, null);
-        lines.forEach(nalog::addPartLine);
 
         // 5. Money. Computed here, in Java, with BigDecimal + HALF_UP (RULE A).
         PricingCalculator.Totals t = pricing.flat(req.price());
@@ -112,12 +109,11 @@ public class NalogService {
         nalog.setNalogNumber(nextNalogNumber());
         nalog.setIdempotencyKey(idempotencyKey);
         nalog.setCustomer(customer);
-        nalog.setApplianceType(req.appliance().type());
+        nalog.setApplianceType(req.appliance().type().trim());
         nalog.setApplianceBrand(req.appliance().brand().trim());
         nalog.setApplianceModel(blankToNull(req.appliance().model()));
         nalog.setSerialNumber(blankToNull(req.appliance().serialNumber()));
         nalog.setDiagnosis(req.diagnosis().trim());
-        nalog.setWorkDone(blankToNull(req.workDone()));
         nalog.setLaborHours(req.laborHours());
         nalog.setLaborRate(t.laborRate());
         nalog.setLaborTotal(t.laborTotal());
@@ -146,11 +142,7 @@ public class NalogService {
             pushNotifier.notifyAssigned(assignee.getId(), saved.getId(), saved.getNalogNumber());
         }
 
-        // 7. Audit rows - same transaction, so they exist if and only if the nalog does.
-        for (NalogPartLine l : saved.getPartLines()) {
-            movementRepository.save(StockMovement.of(l.getPart().getId(), -l.getQuantity(),
-                    StockMovement.Reason.NALOG_CREATE, saved.getId(), actor, saved.getNalogNumber()));
-        }
+        // 7. Audit row - same transaction, so it exists if and only if the nalog does.
         recordHistory(saved.getId(), null, status, actor);
 
         log.info("Created nalog {} (customer {}, total {})", saved.getNalogNumber(), customer.getId(), saved.getTotal());
@@ -158,17 +150,14 @@ public class NalogService {
     }
 
     // ========================================================================
-    // PREVIEW (read-only: no stock reserved, nothing saved)
+    // PREVIEW (read-only: nothing saved)
     // ========================================================================
 
     @Transactional(readOnly = true)
     public NalogPreview preview(PreviewRequest req, AuthUser actor) {
         Nalog editing = req.nalogId() == null ? null : loadAccessible(req.nalogId(), actor);
-        List<NalogPartLine> lines = buildLines(req.partLines(), false, editing);
         PricingCalculator.Totals t = pricing.flat(req.price() != null || editing == null ? req.price() : editing.getTotal());
         return new NalogPreview(req.laborHours(), t.laborRate(), t.laborTotal(),
-                lines.stream().map(l -> new NalogResponse.PartLineView(l.getPart().getId(), l.getPartSku(),
-                        l.getPartName(), l.getUnitPrice(), l.getQuantity(), l.getLineTotal())).toList(),
                 t.partsTotal(), t.subtotal(), t.vatRate(), t.vatAmount(), t.total());
     }
 
@@ -179,10 +168,11 @@ public class NalogService {
     /**
      * Locks the nalog row first, so two simultaneous requests are processed one after
      * the other: the second sees the new status and either no-ops or is rejected.
-     * That is what stops a double-clicked "Cancel" from restoring stock twice.
+     * That is what stops a double-clicked "Cancel" from being recorded twice.
+     * Cancelling needs a written reason (technician on his own nalog, or admin-level) and is final.
      */
     @Transactional(rollbackFor = Exception.class)
-    public NalogResponse changeStatus(Long id, NalogStatus target, AuthUser actor) {
+    public NalogResponse changeStatus(Long id, NalogStatus target, String reason, AuthUser actor) {
         Nalog nalog = nalogRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> NalogException.notFound("Nalog " + id + " not found"));
 
@@ -195,12 +185,15 @@ public class NalogService {
             throw NalogException.conflict("Cannot change status from " + from + " to " + target
                     + ". Allowed: " + NalogStatusRules.next(from));
         }
-        if (target == NalogStatus.CANCELLED && (actor == null || !actor.isAdmin())) {
-            throw NalogException.forbidden("Only an admin can cancel a nalog");
-        }
-
         if (target == NalogStatus.CANCELLED) {
-            restoreStock(nalog, actor, StockMovement.Reason.NALOG_CANCEL);
+            String why = blankToNull(reason);
+            if (why == null) {
+                throw NalogException.invalid("Razlog otkazivanja je obavezan");
+            }
+            if (why.length() > 1000) {
+                throw NalogException.invalid("Razlog otkazivanja je predugačak (najviše 1000 znakova)");
+            }
+            nalog.setCancelReason(why);
         }
         if (target == NalogStatus.COMPLETED) {
             if (photoRepository.countByNalogIdAndCategory(nalog.getId(), "before") == 0) {
@@ -209,8 +202,8 @@ public class NalogService {
             if (photoRepository.countByNalogIdAndCategory(nalog.getId(), "after") == 0) {
                 throw NalogException.invalid("Uslovi nisu ispunjeni: Nalog se ne može zatvoriti bez fotografije \"Posle\"");
             }
-            if (nalog.getWorkDone() == null || nalog.getWorkDone().isBlank()) {
-                throw NalogException.invalid("Uslovi nisu ispunjeni: Nalog se ne može zatvoriti bez opisa izvršenih radova");
+            if (noteRepository.countByNalogId(nalog.getId()) == 0) {
+                throw NalogException.invalid("Uslovi nisu ispunjeni: Nalog se ne može zatvoriti bez konstatacije / izvršenih radova");
             }
             nalog.setCompletedAt(Instant.now());
         }
@@ -220,24 +213,6 @@ public class NalogService {
 
         log.info("Nalog {} {} -> {} by {}", saved.getNalogNumber(), from, target, actor == null ? "?" : actor.name());
         return NalogResponse.from(saved);
-    }
-
-    /** Gives every part on the nalog back to stock + ledger rows. Call inside the caller's transaction. */
-    public void restoreStock(Nalog nalog, AuthUser actor, StockMovement.Reason reason) {
-        if (nalog.getPartLines().isEmpty()) {
-            return;
-        }
-        Set<Long> ids = new TreeSet<>();
-        nalog.getPartLines().forEach(l -> ids.add(l.getPart().getId()));
-        Map<Long, Part> locked = new HashMap<>();
-        partRepository.findAllByIdForUpdate(ids).forEach(p -> locked.put(p.getId(), p));
-
-        for (NalogPartLine l : nalog.getPartLines()) {
-            Part p = locked.get(l.getPart().getId());
-            p.setStockQty(p.getStockQty() + l.getQuantity());
-            movementRepository.save(StockMovement.of(p.getId(), l.getQuantity(),
-                    reason, nalog.getId(), actor, nalog.getNalogNumber()));
-        }
     }
 
     // ========================================================================
@@ -262,7 +237,7 @@ public class NalogService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<NalogSummary> list(NalogStatus status, String q, Long assignedTo, int page, int size, AuthUser actor) {
+    public PageResponse<NalogSummary> list(NalogStatus status, String q, Long assignedTo, Instant from, Instant to, int page, int size, AuthUser actor) {
         Specification<Nalog> spec = (root, query, cb) -> {
             List<Predicate> ps = new ArrayList<>();
             if (status != null) {
@@ -275,14 +250,29 @@ public class NalogService {
             } else if (assignedTo != null) {
                 ps.add(cb.equal(root.get("assignedToId"), assignedTo));
             }
+            if (from != null) {
+                ps.add(cb.greaterThanOrEqualTo(root.<Instant>get("createdAt"), from));
+            }
+            if (to != null) {
+                ps.add(cb.lessThan(root.<Instant>get("createdAt"), to));
+            }
             if (q != null && !q.isBlank()) {
                 String like = "%" + q.trim().toLowerCase().replace("%", "").replace("_", "") + "%";
                 Join<Nalog, Customer> c = root.join("customer");
-                ps.add(cb.or(
+                List<Predicate> any = new ArrayList<>(List.of(
                         cb.like(cb.lower(root.get("nalogNumber")), like),
                         cb.like(cb.lower(c.get("fullName")), like),
                         cb.like(cb.lower(c.get("phone")), like),
-                        cb.like(cb.lower(root.get("serialNumber")), like)));
+                        cb.like(cb.lower(root.get("serialNumber")), like),
+                        cb.like(cb.lower(root.get("applianceType")), like),
+                        cb.like(cb.lower(root.get("applianceBrand")), like),
+                        cb.like(cb.lower(root.get("applianceModel")), like)));
+                // "klima", "bojler"...: the type is stored as a code, so also match it through its Serbian name.
+                List<String> codes = ApplianceType.codesMatching(like.replace("%", ""));
+                if (!codes.isEmpty()) {
+                    any.add(root.<String>get("applianceType").in(codes));
+                }
+                ps.add(cb.or(any.toArray(new Predicate[0])));
             }
             return cb.and(ps.toArray(new Predicate[0]));
         };
@@ -300,12 +290,9 @@ public class NalogService {
                        NalogStatus.RECEIVED, NalogStatus.TESTING, NalogStatus.DRIVING, NalogStatus.NEEDS_ELECTRICIAN);
 
     /**
-     * One transaction, like create: the nalog row is locked, stock is reconciled part by part (only the DIFFERENCE
-     * moves, each move gets a ledger row), the money is recomputed in Java, and any failure rolls everything back.
-     *
-     * Prices: parts already on the nalog keep the price they were added with, a newly added part gets today's price,
-     * and the labor/VAT rates stay those of the nalog. A catalogue or rate change never rewrites an open nalog.
-     * COMPLETED (finished, accounting document) and CANCELLED (stock already returned) cannot be edited.
+     * One transaction, like create: the nalog row is locked, the money is recomputed in Java, and any failure
+     * rolls everything back. COMPLETED (finished, accounting document) and CANCELLED (final) cannot be edited
+     * (an admin may still correct a COMPLETED one).
      */
     @Transactional(rollbackFor = Exception.class)
     public NalogResponse update(Long id, UpdateNalogRequest req, AuthUser actor) {
@@ -322,78 +309,16 @@ public class NalogService {
 
         Customer customer = resolveCustomer(req.customerId(), req.newCustomer());
 
-        Map<Long, Integer> wanted = new TreeMap<>();
-        for (CreateNalogRequest.PartLineInput in : req.partLines()) {
-            wanted.merge(in.partId(), in.quantity(), Integer::sum);
-        }
-        Map<Long, NalogPartLine> current = new HashMap<>();
-        nalog.getPartLines().forEach(l -> current.put(l.getPart().getId(), l));
-
-        // Lock every affected part in ascending id order (same order as create => no deadlocks).
-        Set<Long> ids = new TreeSet<>(wanted.keySet());
-        ids.addAll(current.keySet());
-        Map<Long, Part> parts = new HashMap<>();
-        if (!ids.isEmpty()) {
-            partRepository.findAllByIdForUpdate(ids).forEach(p -> parts.put(p.getId(), p));
-        }
-        Set<Long> missing = new TreeSet<>(wanted.keySet());
-        missing.removeAll(parts.keySet());
-        if (!missing.isEmpty()) {
-            throw NalogException.notFound("Unknown part id(s): " + missing);
-        }
-
-        List<StockMovement> movements = new ArrayList<>();
-        for (Long partId : ids) {
-            Part part = parts.get(partId);
-            NalogPartLine line = current.get(partId);
-            int oldQty = line == null ? 0 : line.getQuantity();
-            int newQty = wanted.getOrDefault(partId, 0);
-            int delta = newQty - oldQty;                         // > 0 takes from stock, < 0 gives back
-
-            if (newQty > 999) {
-                throw NalogException.invalid("Quantity for " + part.getSku() + " exceeds 999");
-            }
-            if (delta > 0) {
-                if (!part.isActive()) {
-                    throw NalogException.invalid("Part " + part.getSku() + " is discontinued");
-                }
-                if (part.getStockQty() < delta) {
-                    throw NalogException.conflict("Not enough stock for " + part.getSku()
-                            + " (need " + delta + " more, available " + part.getStockQty() + ")");
-                }
-            }
-            if (delta != 0) {
-                part.setStockQty(part.getStockQty() - delta);
-                movements.add(StockMovement.of(partId, -delta, StockMovement.Reason.NALOG_EDIT,
-                        nalog.getId(), actor, nalog.getNalogNumber()));
-            }
-
-            if (newQty == 0) {
-                nalog.getPartLines().remove(line);               // orphanRemoval deletes the row
-            } else if (line != null) {
-                line.setQuantity(newQty);
-                line.setLineTotal(pricing.lineTotal(line.getUnitPrice(), newQty));
-            } else {
-                NalogPartLine fresh = new NalogPartLine();
-                fresh.setPart(part);
-                fresh.setPartSku(part.getSku());
-                fresh.setPartName(part.getName());
-                fresh.setUnitPrice(part.getUnitPrice());
-                fresh.setQuantity(newQty);
-                fresh.setLineTotal(pricing.lineTotal(part.getUnitPrice(), newQty));
-                nalog.addPartLine(fresh);
-            }
-        }
+        applianceTypes.requireKnown(req.appliance().type());
 
         PricingCalculator.Totals t = pricing.flat(req.price() != null ? req.price() : nalog.getTotal());
 
         nalog.setCustomer(customer);
-        nalog.setApplianceType(req.appliance().type());
+        nalog.setApplianceType(req.appliance().type().trim());
         nalog.setApplianceBrand(req.appliance().brand().trim());
         nalog.setApplianceModel(blankToNull(req.appliance().model()));
         nalog.setSerialNumber(blankToNull(req.appliance().serialNumber()));
         nalog.setDiagnosis(req.diagnosis().trim());
-        nalog.setWorkDone(blankToNull(req.workDone()));
         nalog.setLaborHours(req.laborHours());
         nalog.setLaborTotal(t.laborTotal());
         nalog.setPartsTotal(t.partsTotal());
@@ -403,7 +328,6 @@ public class NalogService {
         nalog.setPaymentType(req.paymentType());
 
         Nalog saved = nalogRepository.saveAndFlush(nalog);
-        movements.forEach(movementRepository::save);
 
         log.info("Edited nalog {} by {} (total now {})", saved.getNalogNumber(), actor == null ? "?" : actor.name(), saved.getTotal());
         return NalogResponse.from(saved);
@@ -485,67 +409,6 @@ public class NalogService {
     // helpers
     // ========================================================================
 
-    /**
-     * Turns requested part ids/quantities into price-snapshotted lines.
-     * reserve=true  (create):  SELECT FOR UPDATE + decrement stock.
-     * reserve=false (preview): plain read, nothing changes.
-     * TreeMap => ascending id => consistent lock order => no deadlocks.
-     */
-    private List<NalogPartLine> buildLines(List<CreateNalogRequest.PartLineInput> inputs, boolean reserve, Nalog editing) {
-        // Editing preview only: parts already on the nalog keep the snapshot they were added with.
-        Map<Long, NalogPartLine> onNalog = new HashMap<>();
-        if (editing != null) {
-            editing.getPartLines().forEach(l -> onNalog.put(l.getPart().getId(), l));
-        }
-        Map<Long, Integer> wanted = new TreeMap<>();
-        for (CreateNalogRequest.PartLineInput in : inputs) {
-            wanted.merge(in.partId(), in.quantity(), Integer::sum);
-        }
-        if (wanted.isEmpty()) {
-            return List.of();
-        }
-
-        List<Part> parts = new ArrayList<>(reserve
-                ? partRepository.findAllByIdForUpdate(wanted.keySet())
-                : partRepository.findAllById(wanted.keySet()));
-
-        if (parts.size() != wanted.size()) {
-            Set<Long> missing = new TreeSet<>(wanted.keySet());
-            parts.forEach(p -> missing.remove(p.getId()));
-            throw NalogException.notFound("Unknown part id(s): " + missing);
-        }
-        parts.sort(Comparator.comparing(Part::getId));
-
-        List<NalogPartLine> lines = new ArrayList<>();
-        for (Part part : parts) {
-            int qty = wanted.get(part.getId());
-            NalogPartLine old = onNalog.get(part.getId());
-            int alreadyOnNalog = old == null ? 0 : old.getQuantity();
-            if (!part.isActive() && qty > alreadyOnNalog) {
-                throw NalogException.invalid("Part " + part.getSku() + " is discontinued");
-            }
-            if (qty > 999) {
-                throw NalogException.invalid("Quantity for " + part.getSku() + " exceeds 999");
-            }
-            if (part.getStockQty() + alreadyOnNalog < qty) {
-                throw NalogException.conflict("Not enough stock for " + part.getSku()
-                        + " (requested " + qty + ", available " + part.getStockQty() + ")");
-            }
-            if (reserve) {
-                part.setStockQty(part.getStockQty() - qty);       // flushed with the commit
-            }
-            NalogPartLine line = new NalogPartLine();
-            line.setPart(part);
-            line.setPartSku(old != null ? old.getPartSku() : part.getSku());             // snapshots: catalogue edits
-            line.setPartName(old != null ? old.getPartName() : part.getName());          // must never rewrite history
-            line.setUnitPrice(old != null ? old.getUnitPrice() : part.getUnitPrice());
-            line.setQuantity(qty);
-            line.setLineTotal(pricing.lineTotal(line.getUnitPrice(), qty));
-            lines.add(line);
-        }
-        return lines;
-    }
-
     private void recordHistory(Long nalogId, NalogStatus from, NalogStatus to, AuthUser actor) {
         NalogStatusHistory h = new NalogStatusHistory();
         h.setNalogId(nalogId);
@@ -583,25 +446,6 @@ public class NalogService {
             throw NalogException.conflict("A completed or cancelled nalog cannot be rescheduled");
         }
         n.setScheduledAt(scheduledAt);
-        return NalogResponse.from(n);
-    }
-
-    /**
-     * Sets "Izvrseni radovi" on its own (the phone edits it from the nalog screen, not from the full edit form).
-     * The assigned technician or any admin-level user may; a closed nalog only admin-level, a cancelled one nobody.
-     */
-    @Transactional(rollbackFor = Exception.class)
-    public NalogResponse setWorkDone(Long id, String workDone, AuthUser actor) {
-        Nalog n = nalogRepository.findByIdForUpdate(id)
-                .orElseThrow(() -> NalogException.notFound("Nalog " + id + " not found"));
-        requireAccess(n, actor);
-        if (n.getStatus() == NalogStatus.CANCELLED) {
-            throw NalogException.conflict("A cancelled nalog cannot be edited");
-        }
-        if (n.getStatus() == NalogStatus.COMPLETED && (actor == null || !actor.isAdmin())) {
-            throw NalogException.conflict("A completed nalog can only be edited by an administrator");
-        }
-        n.setWorkDone(blankToNull(workDone));
         return NalogResponse.from(n);
     }
 

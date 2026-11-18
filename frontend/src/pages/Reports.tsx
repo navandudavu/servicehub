@@ -4,7 +4,7 @@ import { NalogApiError } from '../api/nalogApi';
 import Spinner from '../components/Spinner';
 import { useLang } from '../i18n/typedLang';
 import { formatMoney } from '../print/formatMoney';
-import type { ReportRow, ReportSummary, ReportTotals } from '../types/nalog';
+import type { BalanceRow, CountsReport, ReportRow, ReportSummary, ReportTotals, TechnicianView } from '../types/nalog';
 
 const p2 = (n: number) => String(n).padStart(2, '0');
 const dateInput = (d: Date) => `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
@@ -60,6 +60,26 @@ export default function Reports() {
   const [data, setData] = useState<ReportSummary | null>(null);
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [counts, setCounts] = useState<CountsReport | null>(null);
+  const [balance, setBalance] = useState<BalanceRow[] | null>(null);
+  const [technicians, setTechnicians] = useState<TechnicianView[]>([]);
+  const [balTech, setBalTech] = useState('');
+  const [balPart, setBalPart] = useState('');
+
+  useEffect(() => {
+    nalogApi.listTechnicians().then(setTechnicians).catch(() => { /* the filter just stays on "all" */ });
+  }, []);
+
+  // Nalozi per worker and status, and the material balance, for the same date range. Counts and sums come from the server.
+  useEffect(() => {
+    if (!from || !to || from > to) return;
+    const ctrl = new AbortController();
+    setCounts(null); setBalance(null);
+    nalogApi.getCountsReport(startOf(from), endOf(to), ctrl.signal).then(setCounts).catch(() => {});
+    nalogApi.getStockBalance({ from: startOf(from), to: endOf(to), ...(balTech ? { technicianId: Number(balTech) } : {}) }, ctrl.signal)
+      .then(setBalance).catch(() => {});
+    return () => ctrl.abort();
+  }, [from, to, balTech]);
 
   const load = useCallback(async (signal?: AbortSignal) => {
     if (!from || !to || from > to) return;
@@ -119,6 +139,7 @@ export default function Reports() {
         </button>
       </div>
 
+      <style>{`@media print { aside, .no-print { display: none !important; } main { padding: 0 !important; } }`}</style>
       <div style={{ fontSize: 12.5, color: 'var(--stone)', marginBottom: 16 }}>{t('reports_note')}</div>
 
       {error && <div role="alert" style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 12 }}>{error}</div>}
@@ -139,6 +160,96 @@ export default function Reports() {
           </>
         )
       )}
+
+      {/* ---- nalozi per worker, by status ---- */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '24px 0 8px' }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0, flex: 1 }}>{t('reports_countsTitle')}</h2>
+        <button className="btn-secondary btn-sm no-print" onClick={() => window.print()}>{t('stockDoc_print')}</button>
+      </div>
+      {counts && counts.rows.length > 0 ? <CountsTable report={counts} /> : (
+        <div style={{ fontSize: 13, color: 'var(--stone)' }}>{counts ? t('reports_none') : <Spinner label={t('jobBoard_loading')} />}</div>
+      )}
+
+      {/* ---- material balance from the zaduzenja / razduzenja ---- */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, margin: '24px 0 8px', flexWrap: 'wrap' }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0, flex: 1 }}>{t('reports_balanceTitle')}</h2>
+        <select className="input no-print" style={{ width: 'auto' }} value={balTech} onChange={(e) => setBalTech(e.target.value)}>
+          <option value="">{t('stockDoc_allTechnicians')}</option>
+          {technicians.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+        </select>
+        <input className="input no-print" style={{ width: 220 }} value={balPart} placeholder={t('reports_balancePart')} onChange={(e) => setBalPart(e.target.value)} />
+        <button className="btn-secondary btn-sm no-print" onClick={() => window.print()}>{t('stockDoc_print')}</button>
+      </div>
+      <div style={{ fontSize: 12.5, color: 'var(--stone)', marginBottom: 8 }}>{t('reports_balanceNote')}</div>
+      {balance ? <BalanceTable rows={balance} filter={balPart} /> : <Spinner label={t('jobBoard_loading')} />}
+    </div>
+  );
+}
+
+function CountsTable({ report }: { report: CountsReport }) {
+  const { t } = useLang();
+  // columns: only statuses that occur anywhere, in a fixed order
+  const statuses = Object.keys(report.totals.byStatus);
+  return (
+    <div className="card" style={{ padding: 0, overflowX: 'auto', marginBottom: 16 }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
+        <thead>
+          <tr style={{ textAlign: 'right', color: 'var(--stone)', fontSize: 12 }}>
+            <th style={{ textAlign: 'left', padding: '10px 14px' }}>{t('stockDoc_technician')}</th>
+            {statuses.map((s) => <th key={s} style={{ padding: '0 8px' }}>{t(`nalogStatus_${s}`)}</th>)}
+            <th style={{ padding: '0 14px' }}>{t('reports_countsTotal')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {report.rows.map((r) => (
+            <tr key={r.technician} style={{ borderTop: '1px solid var(--border)', textAlign: 'right' }}>
+              <td style={{ textAlign: 'left', padding: '8px 14px' }}>{r.technician === '-' ? t('nalogForm_unassigned') : r.technician}</td>
+              {statuses.map((s) => <td key={s} style={{ padding: '0 8px', fontFamily: 'var(--mono)' }}>{r.byStatus[s] ?? 0}</td>)}
+              <td style={{ padding: '0 14px', fontWeight: 600, fontFamily: 'var(--mono)' }}>{r.total}</td>
+            </tr>
+          ))}
+          <tr style={{ borderTop: '2px solid var(--border)', textAlign: 'right', fontWeight: 600 }}>
+            <td style={{ textAlign: 'left', padding: '8px 14px' }}>{t('reports_countsTotal')}</td>
+            {statuses.map((s) => <td key={s} style={{ padding: '0 8px', fontFamily: 'var(--mono)' }}>{report.totals.byStatus[s] ?? 0}</td>)}
+            <td style={{ padding: '0 14px', fontFamily: 'var(--mono)' }}>{report.totals.total}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function BalanceTable({ rows, filter }: { rows: BalanceRow[]; filter: string }) {
+  const { t } = useLang();
+  const f = filter.trim().toLowerCase();
+  const shown = f ? rows.filter((r) => r.name.toLowerCase().includes(f) || (r.sku ?? '').toLowerCase().includes(f)) : rows;
+  if (shown.length === 0) return <div style={{ fontSize: 13, color: 'var(--stone)' }}>{t('reports_none')}</div>;
+  return (
+    <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
+        <thead>
+          <tr style={{ textAlign: 'right', color: 'var(--stone)', fontSize: 12 }}>
+            <th style={{ textAlign: 'left', padding: '10px 14px' }}>{t('stockDoc_technician')}</th>
+            <th style={{ textAlign: 'left' }}>{t('stockDoc_sku')}</th>
+            <th style={{ textAlign: 'left' }}>{t('stockDoc_partName')}</th>
+            <th style={{ textAlign: 'left' }}>{t('stockDoc_unit')}</th>
+            <th>{t('reports_balanceOpening')}</th><th>{t('reports_balanceIssued')}</th><th>{t('reports_balanceReturned')}</th>
+            <th style={{ padding: '0 14px' }}>{t('reports_balanceClosing')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {shown.map((r, i) => (
+            <tr key={`${r.technicianId}-${r.partId ?? r.name}-${i}`} style={{ borderTop: '1px solid var(--border)', textAlign: 'right', fontFamily: 'var(--mono)' }}>
+              <td style={{ textAlign: 'left', padding: '8px 14px', fontFamily: 'inherit' }}>{r.technicianName}</td>
+              <td style={{ textAlign: 'left' }}>{r.sku ?? ''}</td>
+              <td style={{ textAlign: 'left' }}>{r.name}</td>
+              <td style={{ textAlign: 'left' }}>{r.unit}</td>
+              <td>{r.opening}</td><td>{r.issued}</td><td>{r.returned}</td>
+              <td style={{ padding: '0 14px', fontWeight: 700 }}>{r.closing}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

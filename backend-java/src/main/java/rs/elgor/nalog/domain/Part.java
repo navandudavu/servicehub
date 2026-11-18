@@ -5,9 +5,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 
+/** Magacin catalogue entry: sifra, naziv, jedinica mere. No price and no stock - that is tracked on paper. */
 @Entity
 @Table(name = "parts")
 @Getter
@@ -25,12 +25,8 @@ public class Part {
     @Column(nullable = false, length = 200)
     private String name;
 
-    // Net price (excl. VAT). BigDecimal only - never double.
-    @Column(name = "unit_price", nullable = false, precision = 12, scale = 2)
-    private BigDecimal unitPrice;
-
-    @Column(name = "stock_qty", nullable = false)
-    private int stockQty;
+    @Column(nullable = false, length = 20)
+    private String unit = "kom";
 
     @Column(nullable = false)
     private boolean active = true;

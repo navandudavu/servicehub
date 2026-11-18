@@ -14,8 +14,8 @@ import NalogEdit from './pages/NalogEdit';
 import NalogPrintPage from './pages/NalogPrintPage';
 import Reports from './pages/Reports';
 import Parts from './pages/Parts';
-import Carried from './pages/Carried';
-import CarriedPrintPage from './pages/CarriedPrintPage';
+import StockDocs from './pages/StockDocs';
+import StockDocPrintPage from './pages/StockDocPrintPage';
 import { isAdminLevel, isOwner } from './context/roles';
 
 function RequireAuth({ children }) {
@@ -31,7 +31,7 @@ function RequireAdmin({ children }) {
   return children;
 }
 
-// The Tim tab (accounts, roles, passwords) is for admins only; a manager is sent home.
+// The Tim tab (accounts, roles, passwords) and the Reports tab are for admins only; a manager is sent home.
 function RequireOwner({ children }) {
   const { user } = useAuth();
   if (!isOwner(user?.role)) return <Navigate to="/" replace />;
@@ -66,17 +66,20 @@ export default function App() {
       <Route path="/customers" element={
         <RequireAuth><Layout><Customers /></Layout></RequireAuth>
       } />
-      <Route path="/carried" element={
-        <RequireAuth><Layout><Carried /></Layout></RequireAuth>
+      <Route path="/zaduzenje" element={
+        <RequireAuth><RequireAdmin><Layout><StockDocs type="ZAD" /></Layout></RequireAdmin></RequireAuth>
       } />
-      <Route path="/carried/print" element={
-        <RequireAuth><CarriedPrintPage /></RequireAuth>
+      <Route path="/razduzenje" element={
+        <RequireAuth><RequireAdmin><Layout><StockDocs type="RAZ" /></Layout></RequireAdmin></RequireAuth>
+      } />
+      <Route path="/stock-docs/print" element={
+        <RequireAuth><RequireAdmin><StockDocPrintPage /></RequireAdmin></RequireAuth>
       } />
       <Route path="/parts" element={
         <RequireAuth><Layout><Parts /></Layout></RequireAuth>
       } />
       <Route path="/reports" element={
-        <RequireAuth><RequireAdmin><Layout><Reports /></Layout></RequireAdmin></RequireAuth>
+        <RequireAuth><RequireOwner><Layout><Reports /></Layout></RequireOwner></RequireAuth>
       } />
       <Route path="/team" element={
         <RequireAuth><RequireOwner><Layout><Team /></Layout></RequireOwner></RequireAuth>

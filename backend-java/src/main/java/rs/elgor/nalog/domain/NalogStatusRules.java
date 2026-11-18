@@ -14,7 +14,7 @@ import static rs.elgor.nalog.domain.NalogStatus.*;
  *   DRAFT -> DISPATCHED -> any working status
  *   working status <-> any other working status      (IN_PROGRESS, AWAITING_PARTS, RECEIVED, TESTING, DRIVING, NEEDS_ELECTRICIAN)
  *   working status -> COMPLETED
- *   (any non-terminal) -> CANCELLED   (admin only, restores stock)
+ *   (any non-terminal) -> CANCELLED   (needs a reason; final, never reopened)
  */
 public final class NalogStatusRules {
 

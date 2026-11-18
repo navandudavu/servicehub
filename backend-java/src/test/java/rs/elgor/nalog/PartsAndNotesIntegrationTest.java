@@ -37,84 +37,52 @@ class PartsAndNotesIntegrationTest extends AbstractIntegrationTest {
 
     private static final String JSON = MediaType.APPLICATION_JSON_VALUE;
 
-    // ------------------------------------------------------------------ parts
+    // ------------------------------------------------------------------ parts (Magacin = sifra, naziv, jedinica mere)
 
-    private long createPart(String sku, int stock) throws Exception {
+    private long createPart(String sku) throws Exception {
         String body = mvc.perform(post("/api/parts").with(admin()).contentType(JSON)
-                        .content("{\"sku\":\"" + sku + "\",\"name\":\"Filter " + sku + "\",\"unitPrice\":\"12.50\",\"stockQty\":" + stock + "}"))
+                        .content("{\"sku\":\"" + sku + "\",\"name\":\"Filter " + sku + "\",\"unit\":\"m\"}"))
                 .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.unit", is("m")))
                 .andReturn().getResponse().getContentAsString();
         return ((Number) JsonPath.read(body, "$.id")).longValue();
     }
 
     @Test
-    void duplicateSkuIsAConflictAndTechniciansCannotCreateParts() throws Exception {
-        createPart("A1", 3);
+    void duplicateSkuIsAConflictAndTechniciansCannotUseTheMagacin() throws Exception {
+        createPart("A1");
         mvc.perform(post("/api/parts").with(admin()).contentType(JSON)
-                .content("{\"sku\":\"A1\",\"name\":\"Again\",\"unitPrice\":\"1.00\",\"stockQty\":0}"))
+                .content("{\"sku\":\"A1\",\"name\":\"Again\"}"))
                 .andExpect(status().isConflict());
         mvc.perform(post("/api/parts").with(tech2()).contentType(JSON)
-                .content("{\"sku\":\"B2\",\"name\":\"Nope\",\"unitPrice\":\"1.00\",\"stockQty\":0}"))
+                .content("{\"sku\":\"B2\",\"name\":\"Nope\"}"))
                 .andExpect(status().isForbidden());
+        mvc.perform(get("/api/parts").with(tech2())).andExpect(status().isForbidden());
     }
 
     @Test
-    void thePriceOfAPartIsOptional() throws Exception {
+    void theUnitDefaultsToKomAndCanBeChanged() throws Exception {
         String body = mvc.perform(post("/api/parts").with(admin()).contentType(JSON)
-                        .content("{\"sku\":\"NP1\",\"name\":\"Bez cene\",\"stockQty\":2}"))
+                        .content("{\"sku\":\"NP1\",\"name\":\"Bez jedinice\"}"))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.unitPrice", is("0.00")))
+                .andExpect(jsonPath("$.unit", is("kom")))
                 .andReturn().getResponse().getContentAsString();
         long id = ((Number) JsonPath.read(body, "$.id")).longValue();
         mvc.perform(put("/api/parts/" + id).with(admin()).contentType(JSON)
-                .content("{\"name\":\"Bez cene 2\",\"active\":true}"))
+                .content("{\"name\":\"Bez jedinice 2\",\"active\":true,\"unit\":\"kg\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.unitPrice", is("0.00")));
+                .andExpect(jsonPath("$.unit", is("kg")));
     }
 
     @Test
-    void techniciansCanSearchPartsForTheNalogForm() throws Exception {
-        createPart("A1", 3);
-        mvc.perform(get("/api/parts").with(tech2()).param("q", "filter"))
+    void adminSearchesTheMagacinByNameOrSifra() throws Exception {
+        createPart("A1");
+        createPart("B2");
+        mvc.perform(get("/api/parts").with(admin()).param("q", "filter a1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items", hasSize(1)))
-                .andExpect(jsonPath("$.items[0].unitPrice", is("12.50")));
-    }
-
-    @Test
-    void stockHistoryIsNewestFirstAndAdminOnly() throws Exception {
-        long id = createPart("A1", 3);
-        mvc.perform(post("/api/parts/" + id + "/stock").with(admin()).contentType(JSON)
-                .content("{\"delta\":5,\"note\":\"delivery\"}")).andExpect(status().isOk())
-                .andExpect(jsonPath("$.stockQty", is(8)));
-
-        mvc.perform(get("/api/parts/" + id + "/movements").with(admin()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(2)))
-                .andExpect(jsonPath("$[0].delta", is(5)))
-                .andExpect(jsonPath("$[0].reason", is("MANUAL")))
-                .andExpect(jsonPath("$[0].note", is("delivery")))
-                .andExpect(jsonPath("$[0].actorName", is("Admin")))
-                .andExpect(jsonPath("$[1].reason", is("INITIAL")));
-
-        mvc.perform(get("/api/parts/" + id + "/movements").with(tech2())).andExpect(status().isOk());   // technicians read the history too
-        mvc.perform(post("/api/parts/" + id + "/stock").with(tech2()).contentType(JSON)
-                .content("{\"delta\":-2,\"note\":\"used on site\"}")).andExpect(status().isOk())
-                .andExpect(jsonPath("$.stockQty", is(6)));
-        mvc.perform(get("/api/parts/" + id + "/movements").with(admin()))
-                .andExpect(jsonPath("$[0].actorName", is("Tehničar Dva")));                                  // ...and the ledger names him
-        mvc.perform(post("/api/parts/" + id + "/stock").with(tech2()).contentType(JSON)
-                .content("{\"delta\":-99}")).andExpect(status().isConflict());                              // still cannot go below zero
-        mvc.perform(get("/api/parts/99999/movements").with(admin())).andExpect(status().isNotFound());
-    }
-
-    @Test
-    void stockCannotGoBelowZero() throws Exception {
-        long id = createPart("A1", 2);
-        mvc.perform(post("/api/parts/" + id + "/stock").with(admin()).contentType(JSON)
-                .content("{\"delta\":-3}")).andExpect(status().isConflict());
-        org.junit.jupiter.api.Assertions.assertEquals(2, stockOf(id));
-        org.junit.jupiter.api.Assertions.assertEquals(1, count("stock_movement"));   // only the INITIAL row
+                .andExpect(jsonPath("$.items", hasSize(1)));
+        mvc.perform(get("/api/parts").with(admin()).param("q", "b2"))
+                .andExpect(jsonPath("$.items", hasSize(1)));
     }
 
     // ------------------------------------------------------------------ notes
@@ -124,7 +92,7 @@ class PartsAndNotesIntegrationTest extends AbstractIntegrationTest {
             {"newCustomer":{"fullName":"Petar Petrović","address":"Cara Lazara 1","city":"Kruševac","phone":"060 123 456"},
              "appliance":{"type":"%s","brand":"Gorenje"},
              "diagnosis":"Ne hladi","laborHours":"1.00","paymentType":"%s"%s}
-            """.formatted(rs.elgor.nalog.domain.ApplianceType.values()[0], rs.elgor.nalog.domain.PaymentType.values()[0],
+            """.formatted("AIR_CONDITIONER", rs.elgor.nalog.domain.PaymentType.values()[0],
                 assignTo == null ? "" : ",\"assignedToId\":" + assignTo);
         String res = mvc.perform(post("/api/nalozi").with(admin()).contentType(JSON).content(body))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
@@ -202,7 +170,7 @@ class PartsAndNotesIntegrationTest extends AbstractIntegrationTest {
     @Test
     void notesStillWorkOnACancelledNalog() throws Exception {
         long n = createNalog(2L);
-        mvc.perform(patch("/api/nalozi/" + n + "/status").with(admin()).contentType(JSON).content("{\"status\":\"CANCELLED\"}"))
+        mvc.perform(patch("/api/nalozi/" + n + "/status").with(admin()).contentType(JSON).content("{\"status\":\"CANCELLED\",\"reason\":\"Klijent odustao\"}"))
                 .andExpect(status().isOk());
         mvc.perform(post("/api/nalozi/" + n + "/notes").with(admin()).contentType(JSON).content(note("Klijent otkazao")))
                 .andExpect(status().isCreated());

@@ -32,9 +32,9 @@ public class Nalog {
     @JoinColumn(name = "customer_id", nullable = false)
     private Customer customer;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "appliance_type", nullable = false, length = 30)
-    private ApplianceType applianceType;
+    /** A built-in ApplianceType name (AIR_CONDITIONER...) or the name of a type the admin added. */
+    @Column(name = "appliance_type", nullable = false, length = 100)
+    private String applianceType;
 
     @Column(name = "appliance_brand", nullable = false, length = 100)
     private String applianceBrand;
@@ -48,8 +48,9 @@ public class Nalog {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String diagnosis;
 
-    @Column(name = "work_done", columnDefinition = "TEXT")
-    private String workDone;
+    /** Why the nalog was cancelled. Set only together with status CANCELLED. */
+    @Column(name = "cancel_reason", length = 1000)
+    private String cancelReason;
 
     @Column(name = "labor_hours", nullable = false, precision = 6, scale = 2)
     private BigDecimal laborHours;

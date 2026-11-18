@@ -8,16 +8,17 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import rs.elgor.nalog.dto.CountsReport;
 import rs.elgor.nalog.dto.ReportSummary;
 import rs.elgor.nalog.service.NalogReportService;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 
-/** Admin only: money figures never go to technicians. */
+/** Owner (admin account) only: a manager has no access to reports, and money figures never go to technicians. */
 @RestController
 @RequestMapping("/api/nalozi/reports")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasRole('OWNER')")
 public class NalogReportController {
 
     private final NalogReportService reports;
@@ -29,6 +30,11 @@ public class NalogReportController {
     @GetMapping("/summary")
     public ReportSummary summary(@RequestParam Instant from, @RequestParam Instant to) {
         return reports.summary(from, to);
+    }
+
+    @GetMapping("/counts")
+    public CountsReport counts(@RequestParam Instant from, @RequestParam Instant to) {
+        return reports.counts(from, to);
     }
 
     @GetMapping("/export.csv")

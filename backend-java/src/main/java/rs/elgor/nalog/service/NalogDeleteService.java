@@ -9,14 +9,12 @@ import org.springframework.transaction.annotation.Transactional;
 import rs.elgor.nalog.domain.AuthUser;
 import rs.elgor.nalog.domain.Nalog;
 import rs.elgor.nalog.domain.NalogStatus;
-import rs.elgor.nalog.domain.StockMovement;
 import rs.elgor.nalog.repo.NalogRepository;
 
 /**
  * Deleting a nalog, admin only. Everything happens in ONE transaction:
- *  - the parts it still holds go back to stock, with ledger rows (a CANCELLED nalog already gave them back);
  *  - its photo rows go now and the image files after the commit, so a rollback never leaves a nalog without photos;
- *  - notes, status history and part lines go with it (database cascade);
+ *  - notes, status history and old part lines go with it (database cascade);
  *  - one line in nalog_deleted_log keeps who deleted what and when.
  * COMPLETED nalozi are finished accounting documents and can never be deleted.
  */
@@ -49,10 +47,6 @@ public class NalogDeleteService {
             throw NalogException.conflict("A completed nalog cannot be deleted");
         }
 
-        if (nalog.getStatus() != NalogStatus.CANCELLED) {
-            nalogService.restoreStock(nalog, actor, StockMovement.Reason.NALOG_DELETE);
-        }
-
         em.createNativeQuery("INSERT INTO nalog_deleted_log "
                         + "(nalog_id, nalog_number, status, customer_name, total, deleted_by_id, deleted_by_name) "
                         + "VALUES (:id, :number, :status, :customer, :total, :byId, :byName)")
@@ -74,7 +68,7 @@ public class NalogDeleteService {
 
     /**
      * Delete a selection, all or nothing: if any of them is COMPLETED (or has vanished) nothing is deleted.
-     * Runs in ONE transaction; each nalog goes through the same single-delete path (stock back, log row, photos).
+     * Runs in ONE transaction; each nalog goes through the same single-delete path (log row, photos).
      */
     @Transactional(rollbackFor = Exception.class)
     public int deleteMany(java.util.List<Long> ids, AuthUser actor) {

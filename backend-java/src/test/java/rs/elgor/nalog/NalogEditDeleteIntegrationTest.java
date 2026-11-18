@@ -8,7 +8,6 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
-import rs.elgor.nalog.domain.ApplianceType;
 import rs.elgor.nalog.domain.AuthUser;
 import rs.elgor.nalog.domain.NalogStatus;
 import rs.elgor.nalog.domain.PaymentType;
@@ -25,7 +24,6 @@ import rs.elgor.nalog.service.NalogService;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -55,150 +53,94 @@ class NalogEditDeleteIntegrationTest extends AbstractIntegrationTest {
         return new CustomerInput("Petar Petrović", "Cara Lazara 1", "Kruševac", "060 123 456", null, null);
     }
 
-    private NalogResponse create(List<PartLineInput> parts, Long assignTo) {
+    private NalogResponse create(Long assignTo) {
         return service.create(new CreateNalogRequest(null, someone(),
-                new ApplianceInput(ApplianceType.AIR_CONDITIONER, "Gorenje", "X1", "SN1"),
-                "Ne hladi", null, parts, new BigDecimal("1.50"), new BigDecimal("8000.00"), PaymentType.CASH, null, null, assignTo), null, admin);
+                new ApplianceInput("AIR_CONDITIONER", "Gorenje", "X1", "SN1"),
+                "Ne hladi", new BigDecimal("1.50"), new BigDecimal("8000.00"), PaymentType.CASH, null, null, assignTo), null, admin);
     }
 
-    private UpdateNalogRequest edit(NalogResponse n, List<PartLineInput> parts, String hours) {
+    private UpdateNalogRequest edit(NalogResponse n, String hours) {
         return new UpdateNalogRequest(n.customer().id(), null,
-                new ApplianceInput(ApplianceType.AIR_CONDITIONER, "Bosch", null, null),
-                "Novi opis", null, parts, new BigDecimal(hours), null, PaymentType.CASH, n.version());
-    }
-
-    private static NalogResponse.PartLineView line(NalogResponse n, long partId) {
-        return n.partLines().stream().filter(l -> l.partId().equals(partId)).findFirst().orElseThrow();
-    }
-
-    private int ledger(long partId, String reason) {
-        Integer v = jdbc.queryForObject(
-                "SELECT coalesce(sum(delta), 0) FROM stock_movement WHERE part_id = ? AND reason = ?", Integer.class, partId, reason);
-        return v == null ? 0 : v;
+                new ApplianceInput("AIR_CONDITIONER", "Bosch", null, null),
+                "Novi opis", new BigDecimal(hours), null, PaymentType.CASH, n.version());
     }
 
     // ---------------------------------------------------------------- edit
 
     @Test
-    void editReconcilesStockKeepsSnapshotPricesAndRates() {
-        long a = insertPart("A", "100.00", 10);
-        long b = insertPart("B", "50.00", 5);
-        NalogResponse n = create(List.of(new PartLineInput(a, 2)), null);        // stock A = 8
-        jdbc.update("UPDATE parts SET unit_price = 200.00 WHERE id = ?", a);       // catalogue price changes afterwards
+    void editKeepsThePriceWhenNoneIsSent() {
+        NalogResponse n = create(null);
+        NalogResponse e = service.update(n.id(), edit(n, "2.00"), admin);
 
-        NalogResponse e = service.update(n.id(), edit(n, List.of(new PartLineInput(a, 5), new PartLineInput(b, 1)), "2.00"), admin);
-
-        assertEquals(5, stockOf(a));                                // 8 - 3 more
-        assertEquals(4, stockOf(b));
-        assertEquals(new BigDecimal("100.00"), line(e, a).unitPrice());           // old line keeps ITS price
-        assertEquals(new BigDecimal("500.00"), line(e, a).lineTotal());
-        assertEquals(new BigDecimal("50.00"), line(e, b).unitPrice());            // new part: today's price
         assertEquals(new BigDecimal("8000.00"), e.total());                       // no price sent on edit: the nalog keeps its price
         assertEquals("Novi opis", e.diagnosis());
         assertTrue(e.version() > n.version());
-        assertEquals(-3, ledger(a, "NALOG_EDIT"));
-        assertEquals(-1, ledger(b, "NALOG_EDIT"));
     }
 
     @Test
     void editCanChangeThePriceByHand() {
-        NalogResponse n = create(List.of(), null);
-        NalogResponse base = service.get(n.id(), admin);
-        UpdateNalogRequest req = new UpdateNalogRequest(base.customer().id(), null,
-                new ApplianceInput(ApplianceType.AIR_CONDITIONER, "Bosch", null, null),
-                "Novi opis", null, List.of(), new BigDecimal("1.00"), new BigDecimal("4321.50"), PaymentType.CASH, base.version());
+        NalogResponse n = create(null);
+        UpdateNalogRequest req = new UpdateNalogRequest(n.customer().id(), null,
+                new ApplianceInput("AIR_CONDITIONER", "Bosch", null, null),
+                "Novi opis", new BigDecimal("1.00"), new BigDecimal("4321.50"), PaymentType.CASH, n.version());
         NalogResponse e = service.update(n.id(), req, admin);
         assertEquals(new BigDecimal("4321.50"), e.total());
         assertEquals(new BigDecimal("0.00"), e.vatAmount());
     }
 
     @Test
-    void removingAPartGivesTheStockBack() {
-        long a = insertPart("A", "100.00", 10);
-        NalogResponse n = create(List.of(new PartLineInput(a, 3)), null);
-        assertEquals(7, stockOf(a));
+    void aFailedEditRollsEverythingBack() {
+        NalogResponse n = create(null);
+        UpdateNalogRequest bad = new UpdateNalogRequest(null, someone(),
+                new ApplianceInput("PERILICA_SUDA", "Bosch", null, null),          // unknown device type
+                "Novi opis", new BigDecimal("1.00"), null, PaymentType.CASH, n.version());
 
-        NalogResponse e = service.update(n.id(), edit(n, List.of(), "1.50"), admin);
+        assertEquals(400, assertThrows(NalogException.class, () -> service.update(n.id(), bad, admin)).getStatus().value());
 
-        assertEquals(10, stockOf(a));
-        assertTrue(e.partLines().isEmpty());
-        assertEquals(0, count("nalog_part_line"));
-        assertEquals(3, ledger(a, "NALOG_EDIT"));
-    }
-
-    @Test
-    void editBeyondStockRollsBackEverything() {
-        long a = insertPart("A", "100.00", 3);
-        NalogResponse n = create(List.of(new PartLineInput(a, 2)), null);          // stock A = 1
-        UpdateNalogRequest tooMuch = new UpdateNalogRequest(null, someone(),
-                new ApplianceInput(ApplianceType.AIR_CONDITIONER, "Bosch", null, null),
-                "Novi opis", null, List.of(new PartLineInput(a, 5)), new BigDecimal("1.00"), null, PaymentType.CASH, n.version());
-
-        NalogException ex = assertThrows(NalogException.class, () -> service.update(n.id(), tooMuch, admin));
-
-        assertEquals(409, ex.getStatus().value());
-        assertEquals(1, stockOf(a));
-        assertEquals(2, jdbc.queryForObject("SELECT quantity FROM nalog_part_line WHERE nalog_id = ?", Integer.class, n.id()));
         assertEquals("Ne hladi", jdbc.queryForObject("SELECT diagnosis FROM nalog WHERE id = ?", String.class, n.id()));
         assertEquals(1, count("customer"));                                         // the would-be new customer was rolled back too
-        assertEquals(0, ledger(a, "NALOG_EDIT"));
     }
 
     @Test
     void aStaleFormIsRejected() {
-        NalogResponse n = create(List.of(), null);
-        service.update(n.id(), edit(n, List.of(), "1.00"), admin);                  // someone else saves first
-        NalogException ex = assertThrows(NalogException.class, () -> service.update(n.id(), edit(n, List.of(), "2.00"), admin));
+        NalogResponse n = create(null);
+        service.update(n.id(), edit(n, "1.00"), admin);                             // someone else saves first
+        NalogException ex = assertThrows(NalogException.class, () -> service.update(n.id(), edit(n, "2.00"), admin));
         assertEquals(409, ex.getStatus().value());
     }
 
     @Test
     void finishedAndCancelledNaloziCannotBeEdited() {
-        NalogResponse cancelled = create(List.of(), null);
-        service.changeStatus(cancelled.id(), NalogStatus.CANCELLED, admin);
+        NalogResponse cancelled = create(null);
+        service.changeStatus(cancelled.id(), NalogStatus.CANCELLED, "Klijent odustao", admin);
         assertEquals(409, assertThrows(NalogException.class,
-                () -> service.update(cancelled.id(), edit(service.get(cancelled.id(), admin), List.of(), "1.00"), admin)).getStatus().value());
+                () -> service.update(cancelled.id(), edit(service.get(cancelled.id(), admin), "1.00"), admin)).getStatus().value());
 
-        NalogResponse done = create(List.of(), 2L);
-        service.changeStatus(done.id(), NalogStatus.DISPATCHED, admin);
-        service.changeStatus(done.id(), NalogStatus.IN_PROGRESS, admin);
+        NalogResponse done = create(2L);
+        service.changeStatus(done.id(), NalogStatus.DISPATCHED, null, admin);
+        service.changeStatus(done.id(), NalogStatus.IN_PROGRESS, null, admin);
         readyToClose(done.id());
-        service.changeStatus(done.id(), NalogStatus.COMPLETED, admin);
-        // a closed nalog: technicians cannot touch it, an admin still can (parts on a closed nalog are admin-only)
+        service.changeStatus(done.id(), NalogStatus.COMPLETED, null, admin);
+        // a closed nalog: technicians cannot touch it, an admin still can
         assertEquals(409, assertThrows(NalogException.class,
-                () -> service.update(done.id(), edit(service.get(done.id(), admin), List.of(), "1.00"), tech2)).getStatus().value());
-        assertEquals("Novi opis", service.update(done.id(), edit(service.get(done.id(), admin), List.of(), "1.00"), admin).diagnosis());
-    }
-
-    @Test
-    void workDoneCanBeSetOnItsOwnWithTheUsualAccessRules() {
-        NalogResponse n = create(List.of(), 2L);
-        assertEquals("Zamenjen kompresor", service.setWorkDone(n.id(), "  Zamenjen kompresor ", tech2).workDone());
-        assertEquals(404, assertThrows(NalogException.class, () -> service.setWorkDone(n.id(), "x", tech3)).getStatus().value());
-        assertNull(service.setWorkDone(n.id(), "   ", tech2).workDone());                      // blank clears it
-
-        service.changeStatus(n.id(), NalogStatus.DISPATCHED, admin);
-        service.changeStatus(n.id(), NalogStatus.IN_PROGRESS, admin);
-        readyToClose(n.id());
-        service.changeStatus(n.id(), NalogStatus.COMPLETED, admin);
-        assertEquals(409, assertThrows(NalogException.class, () -> service.setWorkDone(n.id(), "x", tech2)).getStatus().value());
-        assertEquals("Ispravka", service.setWorkDone(n.id(), "Ispravka", admin).workDone());
+                () -> service.update(done.id(), edit(service.get(done.id(), admin), "1.00"), tech2)).getStatus().value());
+        assertEquals("Novi opis", service.update(done.id(), edit(service.get(done.id(), admin), "1.00"), admin).diagnosis());
     }
 
     @Test
     void aTechnicianEditsOnlyTheirOwnNalog() {
-        NalogResponse n = create(List.of(), 2L);
-        assertEquals(404, assertThrows(NalogException.class, () -> service.update(n.id(), edit(n, List.of(), "1.00"), tech3)).getStatus().value());
-        assertEquals("Novi opis", service.update(n.id(), edit(n, List.of(), "1.00"), tech2).diagnosis());
+        NalogResponse n = create(2L);
+        assertEquals(404, assertThrows(NalogException.class, () -> service.update(n.id(), edit(n, "1.00"), tech3)).getStatus().value());
+        assertEquals("Novi opis", service.update(n.id(), edit(n, "1.00"), tech2).diagnosis());
     }
 
     @Test
     void switchingToANewCustomerLeavesTheOldRecordAlone() {
-        NalogResponse n = create(List.of(), null);
+        NalogResponse n = create(null);
         UpdateNalogRequest req = new UpdateNalogRequest(null,
                 new CustomerInput("Marko Marković", "Vidovdanska 5", "Kruševac", "063 555 111", null, null),
-                new ApplianceInput(ApplianceType.AIR_CONDITIONER, "Bosch", null, null),
-                "Novi opis", null, List.of(), new BigDecimal("1.00"), null, PaymentType.CASH, n.version());
+                new ApplianceInput("AIR_CONDITIONER", "Bosch", null, null),
+                "Novi opis", new BigDecimal("1.00"), null, PaymentType.CASH, n.version());
         NalogResponse e = service.update(n.id(), req, admin);
 
         assertNotEquals(n.customer().id(), e.customer().id());
@@ -207,25 +149,17 @@ class NalogEditDeleteIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void previewWhileEditingUsesTheNalogsOwnPricesAndDoesNotDoubleCountItsStock() {
-        long a = insertPart("A", "100.00", 3);
-        NalogResponse n = create(List.of(new PartLineInput(a, 3)), null);          // stock A = 0
-        jdbc.update("UPDATE parts SET unit_price = 999.00 WHERE id = ?", a);
-
-        NalogPreview p = service.preview(new PreviewRequest(List.of(new PartLineInput(a, 3)), new BigDecimal("1.00"), null, n.id()), admin);
-        assertEquals(new BigDecimal("100.00"), p.partLines().get(0).unitPrice());  // snapshot price, and no false "out of stock"
+    void previewWhileEditingUsesTheNalogsOwnPrice() {
+        NalogResponse n = create(null);
+        NalogPreview p = service.preview(new PreviewRequest(new BigDecimal("1.00"), null, n.id()), admin);
         assertEquals(new BigDecimal("8000.00"), p.total());                        // no price sent: the nalog's own price
-
-        assertThrows(NalogException.class,                                          // a brand-new nalog really is out of stock
-                () -> service.preview(new PreviewRequest(List.of(new PartLineInput(a, 3)), new BigDecimal("1.00"), null, null), admin));
     }
 
     // ---------------------------------------------------------------- delete
 
     @Test
-    void deletingGivesStockBackRemovesEverythingAndKeepsAnAuditLine() throws Exception {
-        long a = insertPart("A", "100.00", 10);
-        NalogResponse n = create(List.of(new PartLineInput(a, 4)), null);          // stock A = 6
+    void deletingRemovesEverythingAndKeepsAnAuditLine() throws Exception {
+        NalogResponse n = create(null);
         jdbc.update("INSERT INTO nalog_note (nalog_id, author_name, body) VALUES (?, 'x', 'y')", n.id());
         Path dir = Path.of(System.getProperty("java.io.tmpdir"), "nalog-test-photos");
         Files.createDirectories(dir);
@@ -235,40 +169,24 @@ class NalogEditDeleteIntegrationTest extends AbstractIntegrationTest {
 
         deleteService.delete(n.id(), admin);
 
-        assertEquals(10, stockOf(a));
         assertEquals(0, count("nalog"));
-        assertEquals(0, count("nalog_part_line"));
         assertEquals(0, count("nalog_note"));
         assertEquals(0, count("nalog_photo"));
         assertEquals(0, count("nalog_status_history"));
         assertFalse(Files.exists(file), "the image file must be removed after the commit");
         assertEquals(1, count("nalog_deleted_log"));
-        assertEquals(4, ledger(a, "NALOG_DELETE"));
-        assertEquals(1, jdbc.queryForObject(
-                "SELECT count(*) FROM stock_movement WHERE reason = 'NALOG_DELETE' AND nalog_id IS NULL", Integer.class));
-    }
-
-    @Test
-    void deletingACancelledNalogDoesNotReturnStockTwice() {
-        long a = insertPart("A", "100.00", 10);
-        NalogResponse n = create(List.of(new PartLineInput(a, 4)), null);
-        service.changeStatus(n.id(), NalogStatus.CANCELLED, admin);                  // stock back to 10
-        deleteService.delete(n.id(), admin);
-        assertEquals(10, stockOf(a));
-        assertEquals(0, ledger(a, "NALOG_DELETE"));
-        assertEquals("CANCELLED", jdbc.queryForObject("SELECT status FROM nalog_deleted_log", String.class));
     }
 
     @Test
     void completedCannotBeDeletedAndTechniciansCannotDeleteAtAll() {
-        NalogResponse done = create(List.of(), 2L);
-        service.changeStatus(done.id(), NalogStatus.DISPATCHED, admin);
-        service.changeStatus(done.id(), NalogStatus.IN_PROGRESS, admin);
+        NalogResponse done = create(2L);
+        service.changeStatus(done.id(), NalogStatus.DISPATCHED, null, admin);
+        service.changeStatus(done.id(), NalogStatus.IN_PROGRESS, null, admin);
         readyToClose(done.id());
-        service.changeStatus(done.id(), NalogStatus.COMPLETED, admin);
+        service.changeStatus(done.id(), NalogStatus.COMPLETED, null, admin);
         assertEquals(409, assertThrows(NalogException.class, () -> deleteService.delete(done.id(), admin)).getStatus().value());
 
-        NalogResponse open = create(List.of(), 2L);
+        NalogResponse open = create(2L);
         assertEquals(403, assertThrows(NalogException.class, () -> deleteService.delete(open.id(), tech2)).getStatus().value());
         assertEquals(2, count("nalog"));
         assertEquals(404, assertThrows(NalogException.class, () -> deleteService.delete(99999L, admin)).getStatus().value());
@@ -283,9 +201,9 @@ class NalogEditDeleteIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void putAndDeleteOverHttp() throws Exception {
-        NalogResponse n = create(List.of(), 2L);
+        NalogResponse n = create(2L);
         String body = "{\"customerId\":" + n.customer().id() + ",\"appliance\":{\"type\":\"AIR_CONDITIONER\",\"brand\":\"Bosch\"},"
-                + "\"diagnosis\":\"d\",\"partLines\":[],\"laborHours\":\"1.00\",\"paymentType\":\"CASH\",\"expectedVersion\":" + n.version() + "}";
+                + "\"diagnosis\":\"d\",\"laborHours\":\"1.00\",\"paymentType\":\"CASH\",\"expectedVersion\":" + n.version() + "}";
 
         mvc.perform(put("/api/nalozi/" + n.id()).with(as(2, "Tehničar Dva", "technician"))
                         .contentType(MediaType.APPLICATION_JSON).content(body))

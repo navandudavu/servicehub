@@ -13,7 +13,7 @@ public record NalogSummary(
         NalogStatus status,
         String customerName,
         String customerPhone,
-        ApplianceType applianceType,
+        String applianceType,
         String applianceBrand,
         @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal total,
         PaymentType paymentType,

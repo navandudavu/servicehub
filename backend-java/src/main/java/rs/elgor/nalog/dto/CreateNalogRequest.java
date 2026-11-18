@@ -2,12 +2,10 @@ package rs.elgor.nalog.dto;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
-import rs.elgor.nalog.domain.ApplianceType;
 import rs.elgor.nalog.domain.NalogStatus;
 import rs.elgor.nalog.domain.PaymentType;
 
 import java.math.BigDecimal;
-import java.util.List;
 
 /**
  * Input contract for POST /api/nalozi. Mirrored 1:1 by CreateNalogRequest in
@@ -25,11 +23,6 @@ public record CreateNalogRequest(
         @NotNull @Valid ApplianceInput appliance,
 
         @NotBlank @Size(max = 4000) String diagnosis,
-
-        // "Izvrseni radovi". Optional; required only to close the nalog.
-        @Size(max = 4000) String workDone,
-
-        @Valid @Size(max = 50) List<PartLineInput> partLines,
 
         // Sent as a string ("1.50") from the frontend; parsed straight into BigDecimal,
         // never through a double.
@@ -51,11 +44,6 @@ public record CreateNalogRequest(
         Long assignedToId
 ) {
 
-    public CreateNalogRequest {
-        // null-safe: callers may omit partLines entirely
-        partLines = partLines == null ? List.of() : List.copyOf(partLines);
-    }
-
     public record CustomerInput(
             @NotBlank @Size(max = 150) String fullName,
             @NotBlank @Size(max = 255) String address,
@@ -66,14 +54,9 @@ public record CreateNalogRequest(
     ) {}
 
     public record ApplianceInput(
-            @NotNull ApplianceType type,
+            @NotBlank @Size(max = 100) String type,
             @NotBlank @Size(max = 100) String brand,
             @Size(max = 100) String model,
             @Size(max = 100) String serialNumber
-    ) {}
-
-    public record PartLineInput(
-            @NotNull Long partId,
-            @Min(1) @Max(999) int quantity
     ) {}
 }

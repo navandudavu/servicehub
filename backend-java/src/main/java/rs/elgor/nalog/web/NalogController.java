@@ -68,10 +68,12 @@ public class NalogController {
             @RequestParam(required = false) NalogStatus status,
             @RequestParam(required = false) String q,
             @RequestParam(required = false) Long assignedTo,
+            @RequestParam(required = false) java.time.Instant from,
+            @RequestParam(required = false) java.time.Instant to,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @AuthenticationPrincipal Jwt jwt) {
-        return nalogService.list(status, q, assignedTo, page, size, directory.resolve(jwt));
+        return nalogService.list(status, q, assignedTo, from, to, page, size, directory.resolve(jwt));
     }
 
     @GetMapping("/{id}")
@@ -92,7 +94,7 @@ public class NalogController {
         return nalogService.update(id, request, directory.resolve(jwt));
     }
 
-    /** Admin only. Everything except COMPLETED; stock is returned. */
+    /** Admin only. Everything except COMPLETED. */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> delete(@PathVariable Long id, @AuthenticationPrincipal Jwt jwt) {
@@ -118,7 +120,7 @@ public class NalogController {
     public NalogResponse changeStatus(@PathVariable Long id,
                                       @Valid @RequestBody ChangeStatusRequest request,
                                       @AuthenticationPrincipal Jwt jwt) {
-        return nalogService.changeStatus(id, request.status(), directory.resolve(jwt));
+        return nalogService.changeStatus(id, request.status(), request.reason(), directory.resolve(jwt));
     }
 
     /** Admin only. {"technicianId": 3} assigns, {"technicianId": null} un-assigns. */
@@ -148,13 +150,6 @@ public class NalogController {
     public NalogResponse schedule(@PathVariable Long id, @RequestBody ScheduleRequest request,
                                   @AuthenticationPrincipal Jwt jwt) {
         return nalogService.setSchedule(id, request.scheduledAt(), directory.resolve(jwt));
-    }
-
-    /** Assigned technician or admin-level. Sets or clears "Izvrseni radovi" without the full edit form. */
-    @PatchMapping("/{id}/work-done")
-    public NalogResponse workDone(@PathVariable Long id, @Valid @RequestBody WorkDoneRequest request,
-                                  @AuthenticationPrincipal Jwt jwt) {
-        return nalogService.setWorkDone(id, request.workDone(), directory.resolve(jwt));
     }
 
     /** Customer autocomplete for the new-nalog form. */

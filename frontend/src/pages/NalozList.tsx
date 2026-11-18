@@ -10,6 +10,7 @@ import { SelectBox } from '../components/SelectBox';
 import Spinner from '../components/Spinner';
 import { useCurrentUser } from '../context/typedAuth';
 import { useLang } from '../i18n/typedLang';
+import { applianceLabel } from '../components/NalogForm';
 import { usePolling } from '../hooks/usePolling';
 import { useSelection } from '../hooks/useSelection';
 import { formatMoney } from '../print/formatMoney';
@@ -31,6 +32,8 @@ export default function NalozList() {
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [assignedTo, setAssignedTo] = useState('');
+  const [fromDate, setFromDate] = useState('');       // YYYY-MM-DD, nalozi created from this day
+  const [toDate, setToDate] = useState('');           // YYYY-MM-DD, up to and including this day
   const [page, setPage] = useState(0);
   const [technicians, setTechnicians] = useState<TechnicianView[]>([]);
   const [technicianError, setTechnicianError] = useState('');
@@ -46,6 +49,14 @@ export default function NalozList() {
   const [pendingAssign, setPendingAssign] = useState<{ id: number | null; name: string } | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkError, setBulkError] = useState('');
+
+  // The server wants an instant range [from, to): the end day is included by sending the start of the day after it.
+  const rangeParams = () => {
+    const out: { from?: string; to?: string } = {};
+    if (fromDate) out.from = new Date(`${fromDate}T00:00:00`).toISOString();
+    if (toDate) { const d = new Date(`${toDate}T00:00:00`); d.setDate(d.getDate() + 1); out.to = d.toISOString(); }
+    return out;
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => { setDebouncedQuery(query.trim()); setPage(0); }, 300);
@@ -70,6 +81,7 @@ export default function NalozList() {
       status: status || undefined,
       q: debouncedQuery || undefined,
       assignedTo: isAdmin && assignedTo ? Number(assignedTo) : undefined,
+      ...rangeParams(),
       page, size: PAGE_SIZE,
     }, ctrl.signal)
       .then((d) => { setData(d); setError(''); })
@@ -78,11 +90,11 @@ export default function NalozList() {
       })
       .finally(() => { if (!ctrl.signal.aborted) setLoading(false); });
     return () => ctrl.abort();
-  }, [status, debouncedQuery, assignedTo, page, isAdmin]);
+  }, [status, debouncedQuery, assignedTo, fromDate, toDate, page, isAdmin]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // Background refresh of the current page, so new or changed nalozi show up without F5. A result is dropped
   // if the filters or page changed while it was in flight.
-  const listKey = JSON.stringify([status, debouncedQuery, assignedTo, page, isAdmin]);
+  const listKey = JSON.stringify([status, debouncedQuery, assignedTo, fromDate, toDate, page, isAdmin]);
   const listKeyRef = useRef(listKey);
   listKeyRef.current = listKey;
   usePolling(async () => {
@@ -92,6 +104,7 @@ export default function NalozList() {
       status: status || undefined,
       q: debouncedQuery || undefined,
       assignedTo: isAdmin && assignedTo ? Number(assignedTo) : undefined,
+      ...rangeParams(),
       page, size: PAGE_SIZE,
     });
     if (key !== listKeyRef.current) return;
@@ -108,6 +121,7 @@ export default function NalozList() {
         status: status || undefined,
         q: debouncedQuery || undefined,
         assignedTo: isAdmin && assignedTo ? Number(assignedTo) : undefined,
+        ...rangeParams(),
         page, size: PAGE_SIZE,
       }));
     } catch (e) {
@@ -139,6 +153,14 @@ export default function NalozList() {
           <option value="">{t('nalog_allStatuses')}</option>
           {NALOG_STATUSES.map((s) => <option key={s} value={s}>{t(`nalogStatus_${s}`)}</option>)}
         </select>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0, fontSize: 12.5, color: 'var(--stone)' }}>
+          {t('nalog_dateFrom')}
+          <input className="input" type="date" style={{ width: 'auto' }} value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(0); }} />
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0, fontSize: 12.5, color: 'var(--stone)' }}>
+          {t('nalog_dateTo')}
+          <input className="input" type="date" style={{ width: 'auto' }} value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(0); }} />
+        </label>
         {isAdmin && (
           <select className="input" style={{ width: 'auto' }} value={assignedTo}
                   onChange={(e) => { setAssignedTo(e.target.value); setPage(0); }}>
@@ -216,7 +238,7 @@ export default function NalozList() {
                 <div style={{ fontWeight: 500 }}>{n.customerName}</div>
                 <div style={{ fontSize: 12, color: 'var(--stone)' }}>{n.customerPhone}</div>
               </div>
-              <div style={{ fontSize: 13 }}>{t(`appliance_${n.applianceType}`)} · {n.applianceBrand}</div>
+              <div style={{ fontSize: 13 }}>{applianceLabel(t, n.applianceType)} · {n.applianceBrand}</div>
               <div><NalogStatusTag status={n.status} /></div>
               <div style={{ fontSize: 13 }}>{n.assignedToName ?? <span style={{ color: 'var(--stone)' }}>—</span>}</div>
               <div style={{ textAlign: 'right', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{formatMoney(n.total)}</div>

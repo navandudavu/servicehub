@@ -5,6 +5,7 @@ import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Query;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import rs.elgor.nalog.dto.CountsReport;
 import rs.elgor.nalog.dto.ReportSummary;
 
 import java.math.BigDecimal;
@@ -15,10 +16,12 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
-/** Admin-only money reports and CSV export. Read-only; nothing here recalculates a price. */
+/** Owner-only reports (money, counts per worker) and CSV export. Read-only; nothing here recalculates a price. */
 @Service
 public class NalogReportService {
 
@@ -45,6 +48,28 @@ public class NalogReportService {
                 grouped("coalesce(n.assigned_to_name, '-')", from, to, "total DESC, key"),
                 grouped("to_char(n.completed_at AT TIME ZONE 'Europe/Belgrade', 'YYYY-MM')", from, to, "key"),
                 grouped("n.payment_type", from, to, "key"));
+    }
+
+    /** Nalozi created in [from, to) counted per worker and status. */
+    @Transactional(readOnly = true)
+    public CountsReport counts(Instant from, Instant to) {
+        checkRange(from, to);
+        Query q = em.createNativeQuery("SELECT coalesce(n.assigned_to_name, '-'), n.status, count(*) FROM nalog n "
+                + "WHERE n.created_at >= :from AND n.created_at < :to GROUP BY 1, 2 ORDER BY 1, 2");
+        range(q, from, to);
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = q.getResultList();
+        Map<String, Map<String, Long>> perWorker = new LinkedHashMap<>();
+        Map<String, Long> all = new LinkedHashMap<>();
+        for (Object[] r : rows) {
+            long n = ((Number) r[2]).longValue();
+            perWorker.computeIfAbsent((String) r[0], k -> new LinkedHashMap<>()).merge((String) r[1], n, Long::sum);
+            all.merge((String) r[1], n, Long::sum);
+        }
+        List<CountsReport.Row> out = new ArrayList<>();
+        perWorker.forEach((w, m) -> out.add(new CountsReport.Row(w, m, m.values().stream().mapToLong(Long::longValue).sum())));
+        return new CountsReport(from, to, out,
+                new CountsReport.Row("", all, all.values().stream().mapToLong(Long::longValue).sum()));
     }
 
     /** One CSV row per nalog created in [from, to), optionally one status. Semicolon + decimal comma = opens correctly in Serbian Excel. */

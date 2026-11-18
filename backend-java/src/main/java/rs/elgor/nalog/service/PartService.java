@@ -4,28 +4,25 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import rs.elgor.nalog.domain.AuthUser;
 import rs.elgor.nalog.domain.Part;
-import rs.elgor.nalog.domain.StockMovement;
 import rs.elgor.nalog.dto.PageResponse;
 import rs.elgor.nalog.dto.PartDtos.*;
 import rs.elgor.nalog.repo.PartRepository;
-import rs.elgor.nalog.repo.StockMovementRepository;
 
+import java.util.ArrayList;
 import java.util.List;
 
+/** Magacin: a catalogue of sifra / naziv / jedinica mere. Parts are hidden (inactive), never deleted. */
 @Service
 public class PartService {
 
     private final PartRepository partRepository;
-    private final StockMovementRepository movementRepository;
 
-    public PartService(PartRepository partRepository, StockMovementRepository movementRepository) {
+    public PartService(PartRepository partRepository) {
         this.partRepository = partRepository;
-        this.movementRepository = movementRepository;
     }
 
-    /** Inventory lookup used by the nalog form's part picker. */
+    /** Lookup used by the Zaduzenje / Razduzenje search. */
     @Transactional(readOnly = true)
     public PageResponse<PartResponse> search(String q, boolean onlyActive, int page, int size) {
         String cleaned = q == null ? "" : q.trim().toLowerCase().replace("%", "").replace("_", "");
@@ -35,7 +32,7 @@ public class PartService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public PartResponse create(CreatePartRequest req, AuthUser actor) {
+    public PartResponse create(CreatePartRequest req) {
         String sku = req.sku().trim();
         if (partRepository.existsBySku(sku)) {
             throw NalogException.conflict("Šifra " + sku + " već postoji");
@@ -43,30 +40,27 @@ public class PartService {
         Part p = new Part();
         p.setSku(sku);
         p.setName(req.name().trim());
-        p.setUnitPrice((req.unitPrice() == null ? java.math.BigDecimal.ZERO : req.unitPrice()).setScale(2, java.math.RoundingMode.HALF_UP));
-        p.setStockQty(req.stockQty());
-        p = partRepository.saveAndFlush(p);
-        if (req.stockQty() > 0) {
-            movementRepository.save(StockMovement.of(p.getId(), req.stockQty(), StockMovement.Reason.INITIAL, null, actor, null));
-        }
-        return PartResponse.from(p);
+        p.setUnit(cleanUnit(req.unit(), "kom"));
+        return PartResponse.from(partRepository.saveAndFlush(p));
     }
 
-    /**
-     * Price change affects FUTURE nalozi only: existing ones hold a price snapshot.
-     */
     @Transactional(rollbackFor = Exception.class)
     public PartResponse update(Long id, UpdatePartRequest req) {
         Part p = partRepository.findById(id).orElseThrow(() -> NalogException.notFound("Part " + id + " not found"));
         p.setName(req.name().trim());
-        if (req.unitPrice() != null) {
-            p.setUnitPrice(req.unitPrice().setScale(2, java.math.RoundingMode.HALF_UP));
-        }
         p.setActive(req.active());
+        if (req.unit() != null) {
+            p.setUnit(cleanUnit(req.unit(), p.getUnit()));
+        }
         return PartResponse.from(partRepository.saveAndFlush(p));
     }
 
-    /** Activate / deactivate a selection (hidden from the part picker, never deleted). All or nothing. */
+    private static String cleanUnit(String unit, String fallback) {
+        String u = unit == null ? "" : unit.trim();
+        return u.isEmpty() ? fallback : u;
+    }
+
+    /** Activate / deactivate a selection (hidden from the search, never deleted). All or nothing. */
     @Transactional(rollbackFor = Exception.class)
     public int setActiveMany(List<Long> ids, boolean active) {
         List<Long> sorted = ids.stream().distinct().sorted().toList();
@@ -80,33 +74,61 @@ public class PartService {
         return found.size();
     }
 
-    /** Last 50 ledger rows for one part (admin screen). */
-    @Transactional(readOnly = true)
-    public List<StockMovementView> movements(Long id) {
-        if (!partRepository.existsById(id)) {
-            throw NalogException.notFound("Part " + id + " not found");
+    /**
+     * Import from BiznisSOFT: CSV text with sifra, naziv, jedinica mere (separator ; or , or tab, optional header row).
+     * Existing sifra = name and unit are updated (and the part is reactivated); new sifra = created. Bad lines are
+     * skipped and reported, the rest is imported - all in ONE transaction.
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public ImportResult importCsv(String csv) {
+        int created = 0;
+        int updated = 0;
+        List<String> skipped = new ArrayList<>();
+        int lineNo = 0;
+        for (String raw : csv.replace("﻿", "").split("\\R")) {
+            lineNo++;
+            String line = raw.strip();
+            if (line.isEmpty()) {
+                continue;
+            }
+            String sep = line.contains(";") ? ";" : line.contains("\t") ? "\t" : ",";
+            String[] c = line.split(sep, -1);
+            String sku = c.length > 0 ? unquote(c[0]) : "";
+            String name = c.length > 1 ? unquote(c[1]) : "";
+            String unit = c.length > 2 ? unquote(c[2]) : "";
+            if (lineNo == 1 && sku.toLowerCase().startsWith("šif") || lineNo == 1 && sku.toLowerCase().startsWith("sif")) {
+                continue;                                              // header row
+            }
+            if (sku.isEmpty() || name.isEmpty()) {
+                skipped.add("Red " + lineNo + ": nedostaje šifra ili naziv");
+                continue;
+            }
+            if (sku.length() > 60 || name.length() > 200 || unit.length() > 20) {
+                skipped.add("Red " + lineNo + ": predugačak podatak");
+                continue;
+            }
+            Part p = partRepository.findBySku(sku).orElse(null);
+            if (p == null) {
+                p = new Part();
+                p.setSku(sku);
+                created++;
+            } else {
+                updated++;
+            }
+            p.setName(name);
+            p.setUnit(cleanUnit(unit, p.getUnit()));
+            p.setActive(true);
+            partRepository.save(p);
         }
-        return movementRepository.findTop50ByPartIdOrderByCreatedAtDescIdDesc(id).stream()
-                .map(StockMovementView::from).toList();
+        partRepository.flush();
+        return new ImportResult(created, updated, skipped);
     }
 
-    /** Locked read-modify-write + ledger row, atomically. */
-    @Transactional(rollbackFor = Exception.class)
-    public PartResponse adjustStock(Long id, StockAdjustRequest req, AuthUser actor) {
-        if (req.delta() == 0) {
-            throw NalogException.invalid("delta must not be 0");
+    private static String unquote(String s) {
+        String t = s.strip();
+        if (t.length() >= 2 && t.startsWith("\"") && t.endsWith("\"")) {
+            t = t.substring(1, t.length() - 1).strip();
         }
-        List<Part> locked = partRepository.findAllByIdForUpdate(List.of(id));
-        if (locked.isEmpty()) {
-            throw NalogException.notFound("Part " + id + " not found");
-        }
-        Part p = locked.get(0);
-        int newQty = p.getStockQty() + req.delta();
-        if (newQty < 0) {
-            throw NalogException.conflict("Stock cannot go below zero (have " + p.getStockQty() + ", delta " + req.delta() + ")");
-        }
-        p.setStockQty(newQty);
-        movementRepository.save(StockMovement.of(id, req.delta(), StockMovement.Reason.MANUAL, null, actor, req.note()));
-        return PartResponse.from(partRepository.saveAndFlush(p));
+        return t;
     }
 }

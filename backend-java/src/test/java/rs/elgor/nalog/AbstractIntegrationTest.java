@@ -8,8 +8,6 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 
-import java.math.BigDecimal;
-
 /**
  * Real PostgreSQL, real Flyway migrations, real transactions (see EXTERNAL_URL below for the no-Docker option).
  * One database is shared by every test class; tables are emptied before each test.
@@ -40,11 +38,15 @@ public abstract class AbstractIntegrationTest {
         }
     }
 
-    /** Gives a nalog what the closing rule asks for (izvrseni radovi + at least one photo row). */
+    /** Gives a nalog what the closing rule asks for (a konstatacija / izvrseni radovi note + a Pre and a Posle photo row). */
     protected void readyToClose(long nalogId) {
-        jdbc.update("UPDATE nalog SET work_done = 'Zamenjen deo' WHERE id = ?", nalogId);
+        addNote(nalogId, "Zamenjen deo");
         addPhoto(nalogId, "before");
         addPhoto(nalogId, "after");
+    }
+
+    protected void addNote(long nalogId, String body) {
+        jdbc.update("INSERT INTO nalog_note (nalog_id, author_name, body) VALUES (?, 'Test', ?)", nalogId, body);
     }
 
     protected void addPhoto(long nalogId, String category) {
@@ -74,7 +76,10 @@ public abstract class AbstractIntegrationTest {
 
     @BeforeEach
     void cleanDatabase() {
-        jdbc.execute("TRUNCATE nalog_deleted_log, nalog_note, nalog_photo, stock_movement, nalog_status_history, nalog_part_line, nalog, customer, parts, app_user RESTART IDENTITY CASCADE");
+        jdbc.execute("TRUNCATE nalog_deleted_log, nalog_note, nalog_photo, nalog_status_history, nalog_part_line, nalog, customer, parts, "
+                + "stock_doc_revision, stock_doc_line, stock_doc, appliance_type_custom, app_user RESTART IDENTITY CASCADE");
+        jdbc.execute("ALTER SEQUENCE stock_doc_zad_seq RESTART WITH 1");           // not owned by a column, so RESTART IDENTITY skips them
+        jdbc.execute("ALTER SEQUENCE stock_doc_raz_seq RESTART WITH 1");
     }
 
     protected long insertUser(long id, String name, String role) {
@@ -82,15 +87,11 @@ public abstract class AbstractIntegrationTest {
         return id;
     }
 
-    protected long insertPart(String sku, String price, int stock) {
+    protected long insertPart(String sku) {
         return jdbc.queryForObject(
-                "INSERT INTO parts (sku, name, unit_price, stock_qty, active, created_at, updated_at, version) "
-              + "VALUES (?, ?, ?, ?, TRUE, now(), now(), 0) RETURNING id",
-                Long.class, sku, "Part " + sku, new BigDecimal(price), stock);
-    }
-
-    protected int stockOf(long partId) {
-        return jdbc.queryForObject("SELECT stock_qty FROM parts WHERE id = ?", Integer.class, partId);
+                "INSERT INTO parts (sku, name, unit, active, created_at, updated_at, version) "
+              + "VALUES (?, ?, 'kom', TRUE, now(), now(), 0) RETURNING id",
+                Long.class, sku, "Part " + sku);
     }
 
     protected int count(String table) {

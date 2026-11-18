@@ -29,7 +29,7 @@ public final class CustomerDtos {
             String nalogNumber,
             NalogStatus status,
             Instant createdAt,
-            ApplianceType applianceType,
+            String applianceType,
             String applianceBrand,
             String applianceModel,
             @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal total) {}

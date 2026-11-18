@@ -1,12 +1,12 @@
 import { FormEvent, ReactNode, useEffect, useRef, useState } from 'react';
 import { nalogApi } from '../api/nalog';
 import { NalogApiError } from '../api/nalogApi';
-import { formatMoney } from '../print/formatMoney';
+import Modal from './Modal';
 import { useLang } from '../i18n/typedLang';
 import {
   APPLIANCE_TYPES, PAYMENT_TYPES,
   type ApplianceType, type CreateNalogRequest, type CustomerView, type NalogResponse,
-  type PartResponse, type PaymentType, type TechnicianView, type UpdateNalogRequest,
+  type PaymentType, type TechnicianView, type UpdateNalogRequest,
 } from '../types/nalog';
 
 /**
@@ -24,19 +24,17 @@ interface Props {
   onSaved?: (nalog: NalogResponse) => void;
 }
 
-interface SelectedPart {
-  part: PartResponse;
-  quantity: number;
-}
-
 const LABOR_HOURS_RE = /^\d{1,3}(\.\d{1,2})?$/;
 const PRICE_RE = /^\d{1,8}(\.\d{1,2})?$/;
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
     <div className="card" style={{ padding: 20, marginBottom: 16 }}>
-      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--stone)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 14 }}>
-        {title}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--stone)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          {title}
+        </div>
+        {action}
       </div>
       {children}
     </div>
@@ -70,19 +68,14 @@ export function NalogForm({ isAdmin, onCreated, editing, onSaved }: Props) {
 
   // --- appliance / issue ---
   const [applianceType, setApplianceType] = useState<ApplianceType>(editing?.appliance.type ?? 'AIR_CONDITIONER');
+  const [applianceTypes, setApplianceTypes] = useState<string[]>([...APPLIANCE_TYPES].filter((a) => a !== 'OTHER'));
+  const [newTypeOpen, setNewTypeOpen] = useState(false);
   const [brand, setBrand] = useState(editing?.appliance.brand ?? '');
   const [model, setModel] = useState(editing?.appliance.model ?? '');
   const [serialNumber, setSerialNumber] = useState(editing?.appliance.serialNumber ?? '');
   const [diagnosis, setDiagnosis] = useState(editing?.diagnosis ?? '');
-  const [workDone, setWorkDone] = useState(editing?.workDone ?? '');
 
-  // --- parts & labor ---
-  const [partQuery, setPartQuery] = useState('');
-  const [partResults, setPartResults] = useState<PartResponse[]>([]);
-  const [selected, setSelected] = useState<SelectedPart[]>(() => (editing?.partLines ?? []).map((l) => ({
-    part: { id: l.partId, sku: l.sku, name: l.name, unitPrice: l.unitPrice, stockQty: 0, active: true },
-    quantity: l.quantity,
-  })));
+  // --- price (typed by hand) ---
   const [laborHours, setLaborHours] = useState(editing?.laborHours ?? '0.00');
   const [price, setPrice] = useState(editing ? editing.total : '');
 
@@ -94,8 +87,7 @@ export function NalogForm({ isAdmin, onCreated, editing, onSaved }: Props) {
   const [technicianError, setTechnicianError] = useState<string | null>(null);
   const [assignedTo, setAssignedTo] = useState('');
 
-  // --- backend-computed preview + submit state ---
-  const [previewError, setPreviewError] = useState<string | null>(null);
+  // --- submit state ---
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -128,49 +120,12 @@ export function NalogForm({ isAdmin, onCreated, editing, onSaved }: Props) {
     return () => { clearTimeout(timer); ctrl.abort(); };
   }, [customerQuery, customer]);
 
-  // Debounced inventory lookup.
+  // The device-type dropdown: built-in types first, then the ones added with "Dodaj novi uredjaj".
   useEffect(() => {
-    if (partQuery.trim().length < 2) { setPartResults([]); return; }
     const ctrl = new AbortController();
-    const timer = setTimeout(() => {
-      nalogApi.searchParts(partQuery.trim(), { size: 8 }, ctrl.signal)
-        .then((page) => setPartResults(page.items))
-        .catch(() => { /* next keystroke retries */ });
-    }, 300);
-    return () => { clearTimeout(timer); ctrl.abort(); };
-  }, [partQuery]);
-
-  // Debounced check with the backend: it reports "not enough stock" before the form is submitted.
-  useEffect(() => {
-    if (!LABOR_HOURS_RE.test(laborHours)) { return; }
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => {
-      nalogApi.previewNalog(
-        { laborHours, partLines: selected.map((s) => ({ partId: s.part.id, quantity: s.quantity })), nalogId: editing?.id ?? null },
-        ctrl.signal,
-      )
-        .then(() => setPreviewError(null))
-        .catch((e) => {
-          if (e instanceof NalogApiError && e.message !== 'Request cancelled') {
-            setPreviewError(e.message);               // e.g. "Not enough stock for ..."
-          }
-        });
-    }, 400);
-    return () => { clearTimeout(timer); ctrl.abort(); };
-  }, [laborHours, selected, editing?.id]);
-
-  function addPart(part: PartResponse) {
-    setSelected((cur) => cur.some((s) => s.part.id === part.id)
-      ? cur.map((s) => s.part.id === part.id ? { ...s, quantity: Math.min(s.quantity + 1, 999) } : s)
-      : [...cur, { part, quantity: 1 }]);
-    setPartQuery('');
-    setPartResults([]);
-  }
-
-  function setQuantity(partId: number, quantity: number) {
-    setSelected((cur) => cur.map((s) => s.part.id === partId
-      ? { ...s, quantity: Math.max(1, Math.min(999, Math.floor(quantity) || 1)) } : s));
-  }
+    nalogApi.listApplianceTypes(ctrl.signal).then(setApplianceTypes).catch(() => { /* the built-in list stays */ });
+    return () => ctrl.abort();
+  }, []);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -198,8 +153,6 @@ export function NalogForm({ isAdmin, onCreated, editing, onSaved }: Props) {
         },
         appliance: { type: applianceType, brand, model: model || null, serialNumber: serialNumber || null },
         diagnosis,
-        workDone: workDone.trim() || null,
-        partLines: selected.map((s) => ({ partId: s.part.id, quantity: s.quantity })),
         laborHours,
         price: priceValue || null,
         paymentType,
@@ -230,8 +183,6 @@ export function NalogForm({ isAdmin, onCreated, editing, onSaved }: Props) {
       },
       appliance: { type: applianceType, brand, model: model || null, serialNumber: serialNumber || null },
       diagnosis,
-      workDone: workDone.trim() || null,
-      partLines: selected.map((s) => ({ partId: s.part.id, quantity: s.quantity })),
       laborHours,                                      // a string, never parsed to a float
       price: priceValue || null,
       paymentType,
@@ -328,11 +279,15 @@ export function NalogForm({ isAdmin, onCreated, editing, onSaved }: Props) {
       </Section>
 
       {/* ---------- appliance + issue ---------- */}
-      <Section title={t('nalogForm_appliance')}>
+      <Section title={t('nalogForm_appliance')} action={isAdmin && (
+        <button type="button" className="btn-secondary btn-sm" onClick={() => setNewTypeOpen(true)}>{t('nalogForm_addDevice')}</button>
+      )}>
         <div style={grid2}>
           <Field label={t('nalogForm_type')}>
-            <select className="input" value={applianceType} onChange={(e) => setApplianceType(e.target.value as ApplianceType)}>
-              {APPLIANCE_TYPES.map((a) => <option key={a} value={a}>{t(`appliance_${a}`)}</option>)}
+            <select className="input" value={applianceType} onChange={(e) => setApplianceType(e.target.value)}>
+              {/* a nalog that still carries the old "Ostalo" keeps showing it, but it is not offered for new ones */}
+              {!applianceTypes.includes(applianceType) && <option value={applianceType}>{applianceLabel(t, applianceType)}</option>}
+              {applianceTypes.map((a) => <option key={a} value={a}>{applianceLabel(t, a)}</option>)}
             </select>
           </Field>
           <Field label={t('nalogForm_brand')} error={fe('appliance.brand')}>
@@ -348,49 +303,15 @@ export function NalogForm({ isAdmin, onCreated, editing, onSaved }: Props) {
         <Field label={t('nalogForm_diagnosis')} error={fe('diagnosis')}>
           <textarea className="input" rows={4} value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} required />
         </Field>
-        <Field label={t('nalogForm_workDone')} error={fe('workDone')}>
-          <textarea className="input" rows={4} value={workDone} onChange={(e) => setWorkDone(e.target.value)} />
-        </Field>
       </Section>
 
-      {/* ---------- parts & labor ---------- */}
-      <Section title={t('nalogForm_partsLabor')}>
-        <div className="field" style={{ position: 'relative' }}>
-          <input className="input" placeholder={t('nalogForm_searchParts')} value={partQuery} onChange={(e) => setPartQuery(e.target.value)} />
-          {partResults.length > 0 && (
-            <div className="card" style={{ position: 'absolute', zIndex: 5, left: 0, right: 0, top: '100%', marginTop: 2, boxShadow: '0 4px 14px rgba(0,0,0,0.12)' }}>
-              {partResults.map((p) => (
-                <button key={p.id} type="button" disabled={p.stockQty < 1} onClick={() => addPart(p)}
-                        style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '8px 12px', borderBottom: '1px solid var(--border)', opacity: p.stockQty < 1 ? 0.45 : 1 }}>
-                  <strong>{p.name}</strong>
-                  <span style={{ color: 'var(--stone)', fontSize: 12.5 }}> · {p.sku} · {formatMoney(p.unitPrice)} · {p.stockQty} {t('nalogForm_stockLabel')}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {selected.map((s) => (
-          <div key={s.part.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
-            <div style={{ flex: 1 }}>
-              {s.part.name} <span style={{ color: 'var(--stone)', fontSize: 12.5 }}>({s.part.sku})</span>
-            </div>
-            <input className="input" type="number" min={1} max={999} value={s.quantity} style={{ width: 80 }}
-                   onChange={(e) => setQuantity(s.part.id, Number(e.target.value))} />
-            <button type="button" className="btn-secondary btn-xs"
-                    onClick={() => setSelected((c) => c.filter((x) => x.part.id !== s.part.id))}>
-              {t('nalogForm_remove')}
-            </button>
-          </div>
-        ))}
-
-
-        <div style={{ marginTop: 6, maxWidth: 220 }}>
+      {/* ---------- price ---------- */}
+      <Section title={t('nalogForm_priceSection')}>
+        <div style={{ maxWidth: 220 }}>
           <Field label={t('nalogForm_price')} error={fe('price')}>
             <input className="input" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0.00" />
           </Field>
         </div>
-        {previewError && <div role="alert" style={{ color: 'var(--danger)', fontSize: 13, marginTop: 6 }}>{previewError}</div>}
       </Section>
 
       {/* ---------- payment / dispatch ---------- */}
@@ -438,6 +359,55 @@ export function NalogForm({ isAdmin, onCreated, editing, onSaved }: Props) {
       <button type="submit" className="btn" disabled={submitting}>
         {submitting ? t('nalogForm_saving') : editing ? t('nalogEdit_save') : t('nalogForm_submit')}
       </button>
+
+      {newTypeOpen && (
+        <NewDeviceModal
+          onClose={() => setNewTypeOpen(false)}
+          onAdded={(list, name) => { setApplianceTypes(list); setApplianceType(name); setNewTypeOpen(false); }}
+        />
+      )}
     </form>
+  );
+}
+
+/** Built-in types have a translated label; the ones an admin added are shown by their own name. */
+export function applianceLabel(t: (key: string) => string, type: string): string {
+  return (APPLIANCE_TYPES as readonly string[]).includes(type) ? t(`appliance_${type}`) : type;
+}
+
+/** "Dodaj novi uredjaj": admin-level adds a device type; it appears in the dropdown at once and is selected. */
+function NewDeviceModal({ onClose, onAdded }: { onClose: () => void; onAdded: (list: string[], name: string) => void }) {
+  const { t } = useLang();
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function add() {
+    const clean = name.trim().replace(/\s+/g, ' ');
+    if (!clean || busy) { if (!clean) setError(t('nalogForm_deviceNameRequired')); return; }
+    setBusy(true); setError('');
+    try {
+      const list = await nalogApi.addApplianceType(clean);
+      onAdded(list, list.find((x) => x.toLowerCase() === clean.toLowerCase()) ?? clean);
+    } catch (e) {
+      setError(e instanceof NalogApiError ? e.message : t('nalogForm_unexpected'));
+      setBusy(false);
+    }
+  }
+
+  // A modal inside the nalog <form>: the field must not submit the whole nalog on Enter.
+  return (
+    <Modal title={t('nalogForm_addDevice')} onClose={onClose}>
+      <div className="field">
+        <label>{t('nalogForm_deviceName')}</label>
+        <input className="input" autoFocus maxLength={100} value={name} onChange={(e) => setName(e.target.value)}
+               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }} />
+      </div>
+      {error && <div role="alert" style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 10 }}>{error}</div>}
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <button type="button" className="btn-secondary" onClick={onClose} disabled={busy}>{t('common_cancel')}</button>
+        <button type="button" className="btn" onClick={add} disabled={busy}>{t('nalogForm_deviceAdd')}</button>
+      </div>
+    </Modal>
   );
 }

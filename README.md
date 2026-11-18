@@ -80,13 +80,13 @@ Kontrolna tabla i Kalendar čitaju naloge; administrator zakazuje planirani dola
 
 ### Zaduživanje
 
-Kartica **Zaduživanje** (svi korisnici): lista materijala koji serviser nosi sa sobom (šifra nije obavezna, naziv, količina), najviše **50 stavki po serviseru**. Serviser vodi samo svoju listu, administrator i menadžer bilo čiju (biraju servisera). Stavku birate iz **magacina** (pretraga po nazivu ili šifri, samo aktivni delovi; kopiraju se šifra i naziv) ili je upisujete slobodno. Magacin se samo čita: zaduživanje **ne pomera zalihe**. Dugme *Štampaj* otvara dokument „Zaduženje materijala“ za štampu (API: `/api/carried`). Ista lista je i u Android aplikaciji, gde štampač otvara sistemski dijalog za štampu (A4 ili PDF).
+Dve kartice, **Zaduživanje** i **Razduživanje**, isti izgled kao u starom programu: broj dokumenta (posebni brojači, počinju od 1), datum i vreme, serviser, stavke (šifra, naziv, jedinica mere, količina). Deo se bira **samo pretragom** u magacinu. Dokument pišu i menjaju samo administrator i menadžer; serviser u Android aplikaciji (kartica *Magacin*) samo vidi svoje dokumente. **Brisanja nema**: svaka izmena čuva prethodnu verziju (ko, kada, šta je pisalo; `GET /api/stock-docs/{id}/revisions`). Dokumenti **ne pomeraju nikakve zalihe**. *Štampaj* štampa sve dokumente izabranog servisera (po datumu), API: `/api/stock-docs`. *Stanje materijala* (zaduženo − razduženo po serviseru i delu za period od/do) je izveštaj samo za administratora.
 
 ## Uloge
 
 - **Administrator**: sve, uključujući karticu *Tim* (nalozi korisnika, uloge, lozinke).
 - **Menadžer**: sve što i administrator (nalozi, delovi, klijenti, izveštaji, brisanja), osim *Tima*. Server odbija sve izmene `/api/users` za menadžera, a kartica se ne prikazuje.
-- **Serviser**: samo svoji (dodeljeni) nalozi; ne pravi naloge, nema stranicu *Izveštaji*; vidi ceo *Magacin* i koriguje stanje (ne pravi i ne menja delove); vodi svoje zaduženje.
+- **Serviser**: samo svoji (dodeljeni) nalozi; ne pravi naloge, nema *Izveštaje* ni magacin; u Android kartici *Magacin* samo čita svoja zaduženja/razduženja. Nalog može **otkazati** uz obavezan razlog (otkazan je konačan, ne otvara se ponovo). **Menadžer** nema pristup izveštajima.
 
 ## API
 
@@ -128,15 +128,14 @@ Kartica **Zaduživanje** (svi korisnici): lista materijala koji serviser nosi sa
 | GET/POST/DELETE | `/api/nalozi/{id}/notes[/{noteId}]` | čitanje/dodavanje po pravilu pristupa, brisanje admin; na završenom nalogu samo čitanje (409) |
 | GET | `/api/nalozi/customers`, `/technicians`, `/stats`, `/calendar` | po pravilu pristupa / admin |
 | GET | `/api/nalozi/reports/summary`, `/reports/export.csv` | admin |
-| GET | `/api/parts` | svi čitaju |
-| POST/PUT | `/api/parts`, `/api/parts/{id}` | administrator / menadžer |
-| POST | `/api/parts/{id}/stock` | svi prijavljeni (korekcija stanja, upisuje se ko je uradio) |
-| GET | `/api/parts/{id}/movements` | svi prijavljeni – istorija stanja |
-| GET | `/api/carried` (`?technicianId=` samo administrator) | prijavljen – svoja lista zaduženja |
-| POST | `/api/carried` | prijavljen (administrator može za drugog servisera); najviše 50 stavki po serviseru |
-| PUT, DELETE | `/api/carried/{id}` | vlasnik liste ili administrator |
+| GET | `/api/parts` | prijavljeni (magacin = šifra, naziv, jedinica mere; bez cene i stanja) |
+| POST/PUT | `/api/parts`, `/api/parts/{id}` | administrator / menadžer (uvoz iz BiznisSOFT-a: CSV na stranici Magacin) |
+| GET | `/api/stock-docs`, `/full`, `/{id}` | admin-nivo: svi; serviser: samo svoji |
+| POST, PUT | `/api/stock-docs`, `/api/stock-docs/{id}` | administrator / menadžer (nema DELETE) |
+| GET | `/api/stock-docs/balance` | samo administrator (izveštaj) |
+| GET/POST | `/api/appliance-types` | svi čitaju / administrator i menadžer dodaju novi tip uređaja |
 
-Šema baze: Flyway migracije `V1`–`V11` u `backend-java/src/main/resources/db/migration/` (V8 izvršeni radovi i kategorija *Radni nalog*, V9 ručna cena, V10 novi statusi i uloga menadžera, V11 zaduživanje).
+Šema baze: Flyway migracije `V1`–`V14` u `backend-java/src/main/resources/db/migration/` (V8 izvršeni radovi i kategorija *Radni nalog*, V9 ručna cena, V10 novi statusi i uloga menadžera, V11 zaduživanje, V13 zaduženja/razduženja kao dokumenti, V14 razlog otkazivanja, magacin bez cene i stanja, novi tipovi uređaja; izvršeni radovi su spojeni sa konstatacijama).
 
 ## Pokretanje lokalno (Windows)
 

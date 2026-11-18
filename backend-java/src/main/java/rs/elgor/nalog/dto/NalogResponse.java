@@ -19,7 +19,7 @@ public record NalogResponse(
         CustomerView customer,
         ApplianceView appliance,
         String diagnosis,
-        String workDone,
+        String cancelReason,
         @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal laborHours,
         @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal laborRate,
         @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal laborTotal,
@@ -44,7 +44,7 @@ public record NalogResponse(
     public record CustomerView(Long id, String fullName, String address, String city,
                                String phone, String email, String locationNotes) {}
 
-    public record ApplianceView(ApplianceType type, String brand, String model, String serialNumber) {}
+    public record ApplianceView(String type, String brand, String model, String serialNumber) {}
 
     public record PartLineView(Long partId, String sku, String name,
                                @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal unitPrice,
@@ -63,7 +63,7 @@ public record NalogResponse(
                 new ApplianceView(n.getApplianceType(), n.getApplianceBrand(),
                         n.getApplianceModel(), n.getSerialNumber()),
                 n.getDiagnosis(),
-                n.getWorkDone(),
+                n.getCancelReason(),
                 n.getLaborHours(), n.getLaborRate(), n.getLaborTotal(),
                 n.getPartLines().stream()
                         .map(l -> new PartLineView(l.getPart().getId(), l.getPartSku(), l.getPartName(),

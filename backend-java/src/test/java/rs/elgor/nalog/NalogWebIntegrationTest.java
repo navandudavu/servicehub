@@ -32,7 +32,12 @@ class NalogWebIntegrationTest extends AbstractIntegrationTest {
 
     private RequestPostProcessor as(long id, String name, String role) {
         return jwt().jwt(j -> j.claim("id", id).claim("name", name).claim("role", role))
-                .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + role.toUpperCase()));
+                .authorities("admin".equals(role)
+                        ? new org.springframework.security.core.authority.SimpleGrantedAuthority[]{
+                            new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN"),
+                            new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OWNER")}
+                        : new org.springframework.security.core.authority.SimpleGrantedAuthority[]{
+                            new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + role.toUpperCase())});
     }
     private RequestPostProcessor admin() { return as(1, "Admin", "admin"); }
     private RequestPostProcessor tech() { return as(2, "Tehničar Dva", "technician"); }
@@ -59,14 +64,6 @@ class NalogWebIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(header().exists("Location"))
                 .andExpect(jsonPath("$.total", is("4500.00")))        // 3750 + 20% VAT = 4500
                 .andExpect(jsonPath("$.status", is("DRAFT")));
-    }
-
-    @Test
-    void createPreservesWorkDone() throws Exception {
-        String body = valid().replace("\"diagnosis\":\"Ne hladi\"", "\"diagnosis\":\"Ne hladi\",\"workDone\":\"Zamenjen deo\"");
-        mvc.perform(post("/api/nalozi").with(admin()).contentType(MediaType.APPLICATION_JSON).content(body))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.workDone", is("Zamenjen deo")));
     }
 
     @Test

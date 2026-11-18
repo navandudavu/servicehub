@@ -5,6 +5,7 @@ import { NalogApiError } from '../api/nalogApi';
 import { NalogStatusTag } from '../components/NalogStatusTag';
 import { NalogPhotos } from '../components/NalogPhotos';
 import { NalogNotes } from '../components/NalogNotes';
+import { applianceLabel } from '../components/NalogForm';
 import Modal from '../components/Modal';
 import Spinner from '../components/Spinner';
 import { useCurrentUser } from '../context/typedAuth';
@@ -41,6 +42,7 @@ export default function NalogDetail() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [visit, setVisit] = useState('');                    // date value (YYYY-MM-DD)
 
@@ -138,7 +140,7 @@ export default function NalogDetail() {
   const fmtDateTime = (iso: string) => new Date(iso).toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' });
   const closed = nalog.status === 'COMPLETED' || nalog.status === 'CANCELLED';
   const moves = NEXT_STATUSES[nalog.status].filter((s) => s !== 'CANCELLED');
-  const canCancel = isAdmin && NEXT_STATUSES[nalog.status].includes('CANCELLED');
+  const canCancel = NEXT_STATUSES[nalog.status].includes('CANCELLED');       // the technician of the nalog or an admin, with a written reason
   const canEdit = EDITABLE_STATUSES.includes(nalog.status);
   const canDelete = isAdmin && nalog.status !== 'COMPLETED';
   const c = nalog.customer;
@@ -164,7 +166,7 @@ export default function NalogDetail() {
           {nalog.status === 'RECEIVED' && (
             <button className="btn-secondary" onClick={() => navigate(`/nalozi/${nalog.id}/print?revers=1`)}>{t('nalogDetail_revers')}</button>
           )}
-          {canCancel && <button className="btn-danger-outline btn-sm" disabled={busy} onClick={() => setConfirmCancel(true)}>{t('nalogDetail_cancel')}</button>}
+          {canCancel && <button className="btn-danger-outline btn-sm" disabled={busy} onClick={() => { setCancelReason(''); setConfirmCancel(true); }}>{t('nalogDetail_cancel')}</button>}
           {canDelete && <button className="btn-danger-outline btn-sm" disabled={busy} onClick={() => setConfirmDelete(true)}>{t('nalogDetail_delete')}</button>}
         </div>
       </div>
@@ -183,7 +185,7 @@ export default function NalogDetail() {
               {c.locationNotes && <div style={{ color: 'var(--stone)', marginTop: 4 }}>{c.locationNotes}</div>}
             </Card>
             <Card title={t('nalogDetail_appliance')}>
-              <div style={{ fontWeight: 600 }}>{t(`appliance_${a.type}`)} — {a.brand}{a.model ? ` ${a.model}` : ''}</div>
+              <div style={{ fontWeight: 600 }}>{applianceLabel(t, a.type)} — {a.brand}{a.model ? ` ${a.model}` : ''}</div>
               <div style={{ color: 'var(--stone)' }}>{t('nalogDetail_serial')}: {a.serialNumber ?? '—'}</div>
             </Card>
           </div>
@@ -194,18 +196,9 @@ export default function NalogDetail() {
 
           <NalogNotes nalogId={nalog.id} isAdmin={isAdmin} locked={nalog.status === 'COMPLETED'} />
 
-          <Card title={t('nalogDetail_partsLabor')}>
+          <Card title={t('nalogForm_priceSection')}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
               <tbody>
-                {nalog.partLines.length === 0 && (
-                  <tr><td style={{ padding: '6px 0', color: 'var(--stone)' }}>{t('nalogDetail_noParts')}</td><td /></tr>
-                )}
-                {nalog.partLines.map((l) => (
-                  <tr key={l.partId} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '6px 0' }}>{l.name} <span style={{ color: 'var(--stone)' }}>({l.sku})</span></td>
-                    <td style={{ textAlign: 'right' }}>× {l.quantity}</td>
-                  </tr>
-                ))}
                 <tr style={{ fontWeight: 700, fontSize: 16 }}>
                   <td style={{ paddingTop: 6 }}>{t('nalogForm_price')}</td>
                   <td style={{ textAlign: 'right', paddingTop: 6 }}>{formatMoney(nalog.total)} RSD</td>
@@ -217,9 +210,12 @@ export default function NalogDetail() {
 
           <NalogPhotos nalogId={nalog.id} canUpload={nalog.status !== 'CANCELLED'} isAdmin={isAdmin} userId={user?.id ?? null} />
 
-          <Card title={t('nalogDetail_workDone')}>
-            <div style={{ whiteSpace: 'pre-wrap' }}>{nalog.workDone || '—'}</div>
-          </Card>
+          {/* the box at the bottom only exists on a cancelled nalog, and shows why it was cancelled */}
+          {nalog.status === 'CANCELLED' && (
+            <Card title={t('nalogDetail_cancelReason')}>
+              <div style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{nalog.cancelReason || '—'}</div>
+            </Card>
+          )}
         </div>
 
         <div>
@@ -279,11 +275,16 @@ export default function NalogDetail() {
       )}
 
       {confirmCancel && (
-        <Modal title={t('nalogDetail_cancel')} onClose={() => setConfirmCancel(false)} width={400}>
+        <Modal title={t('nalogDetail_cancel')} onClose={() => setConfirmCancel(false)} width={440}>
           <p style={{ marginTop: 0 }}>{t('nalogDetail_cancelConfirm')}</p>
+          <div className="field">
+            <label>{t('nalogDetail_cancelReason')}</label>
+            <textarea className="input" rows={3} maxLength={1000} autoFocus value={cancelReason}
+                      onChange={(e) => setCancelReason(e.target.value)} placeholder={t('nalogDetail_cancelReasonHint')} />
+          </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             <button className="btn-secondary" onClick={() => setConfirmCancel(false)} disabled={busy}>{t('common_cancel')}</button>
-            <button className="btn btn-danger" disabled={busy} onClick={() => run(() => nalogApi.changeStatus(nalog.id, 'CANCELLED'))}>
+            <button className="btn btn-danger" disabled={busy || !cancelReason.trim()} onClick={() => run(() => nalogApi.changeStatus(nalog.id, 'CANCELLED', cancelReason.trim()))}>
               {t('nalogDetail_cancel')}
             </button>
           </div>

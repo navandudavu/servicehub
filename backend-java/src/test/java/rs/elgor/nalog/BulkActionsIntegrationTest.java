@@ -92,8 +92,8 @@ class BulkActionsIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void bulkActivateAndDeactivateParts() {
-        long p1 = insertPart("A-1", "10.00", 5);
-        long p2 = insertPart("A-2", "20.00", 5);
+        long p1 = insertPart("A-1");
+        long p2 = insertPart("A-2");
 
         assertEquals(2, partService.setActiveMany(List.of(p1, p2), false));
         assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM parts WHERE active", Integer.class));

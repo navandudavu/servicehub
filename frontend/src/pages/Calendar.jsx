@@ -81,7 +81,8 @@ export default function Calendar() {
   const today = toDateKey(new Date());
 
   return (
-    <div>
+    // fills the whole screen: the page is as tall as the window (minus the 28px padding of <main>), the week grid takes what is left
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 56px)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 20 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 600, margin: '0 0 4px' }}>{t('calendar_title')}</h1>
@@ -100,12 +101,12 @@ export default function Calendar() {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 10, opacity: loading ? 0.5 : 1 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gridTemplateRows: 'minmax(0, 1fr)', gap: 10, flex: 1, minHeight: 0, opacity: loading ? 0.5 : 1 }}>
         {days.map((day, i) => {
           const key = toDateKey(day);
           const isToday = key === today;
           return (
-            <div key={key} className="card" style={{ padding: 10, minHeight: 220, borderColor: isToday ? 'var(--green)' : undefined }}>
+            <div key={key} className="card" style={{ padding: 10, minHeight: 0, overflowY: 'auto', borderColor: isToday ? 'var(--green)' : undefined }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: isToday ? 'var(--green-dark)' : 'var(--stone)', marginBottom: 8 }}>
                 {dayLabels[i]} {day.getDate()}
               </div>

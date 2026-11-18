@@ -1,8 +1,8 @@
 import axios, { AxiosError, AxiosInstance, Method } from 'axios';
 import type {
-  ApiProblem, CarriedRequest, CarriedView, CreateNalogRequest, CustomerDetail, CustomerInput, CustomerView, CreatePartRequest, NalogListQuery, NalogPreview, NalogResponse,
+  ApiProblem, CountsReport, CreateNalogRequest, CreateStockDocRequest, ImportResult, StockDocQuery, StockDocSummary, StockDocType, StockDocView, StockRevisionView, UpdateStockDocRequest, BalanceRow, CustomerDetail, CustomerInput, CustomerView, CreatePartRequest, NalogListQuery, NalogPreview, NalogResponse,
   NalogStatus, NalogSummary, PageResponse, PartResponse, PreviewRequest, StatusHistoryView,
-  StockAdjustRequest, StockMovementView, NoteView, CreateNoteRequest, UpdateNalogRequest, TechnicianView, UpdatePartRequest, PhotoView, PhotoCategory, NalogStats, CalendarEntry, ReportSummary, BulkResult, BulkCustomerDelete,
+  NoteView, CreateNoteRequest, UpdateNalogRequest, TechnicianView, UpdatePartRequest, PhotoView, PhotoCategory, NalogStats, CalendarEntry, ReportSummary, BulkResult, BulkCustomerDelete,
 } from '../types/nalog';
 
 /** Normalised error: the UI never has to look inside an AxiosError. */
@@ -39,7 +39,7 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized }:
    *  - Retries ONLY on network errors/timeouts and 502/503/504, never on 4xx.
    *  - Only requests that are safe to repeat are retried: GETs, POST-with-Idempotency-Key,
    *    and PATCH status (the server treats "same status again" as a no-op).
-   *    Stock/part POSTs are NEVER retried (a repeat could apply twice).
+   *    Part and document POSTs are NEVER retried (a repeat could apply twice).
    *  - Exponential backoff (500ms, 1s).
    *  - Every failure becomes a NalogApiError with per-field messages.
    *  - No money maths here: every number shown comes from the backend.
@@ -102,8 +102,9 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized }:
   const getNalogHistory = (id: number, signal?: AbortSignal) =>
     send<StatusHistoryView[]>('GET', `/api/nalozi/${id}/history`, { safeToRetry: true, signal });
 
-  const changeStatus = (id: number, status: NalogStatus, signal?: AbortSignal) =>
-    send<NalogResponse>('PATCH', `/api/nalozi/${id}/status`, { data: { status }, safeToRetry: true, signal });
+  // reason is required by the server when cancelling (a repeat is a no-op, so retrying is safe)
+  const changeStatus = (id: number, status: NalogStatus, reason?: string, signal?: AbortSignal) =>
+    send<NalogResponse>('PATCH', `/api/nalozi/${id}/status`, { data: { status, reason: reason ?? null }, safeToRetry: true, signal });
 
   const searchCustomers = (q: string, signal?: AbortSignal) =>
     send<CustomerView[]>('GET', '/api/nalozi/customers', { params: { q }, safeToRetry: true, signal });
@@ -156,7 +157,10 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized }:
   const setSchedule = (id: number, scheduledAt: string | null, signal?: AbortSignal) =>
     send<NalogResponse>('PATCH', `/api/nalozi/${id}/schedule`, { data: { scheduledAt }, safeToRetry: true, signal });
 
-  // ---- reports (admin only on the server) ----
+  // ---- reports (owner only on the server: a manager has no access) ----
+  const getCountsReport = (fromIso: string, toIso: string, signal?: AbortSignal) =>
+    send<CountsReport>('GET', '/api/nalozi/reports/counts', { params: { from: fromIso, to: toIso }, safeToRetry: true, signal });
+
   const getReportSummary = (fromIso: string, toIso: string, signal?: AbortSignal) =>
     send<ReportSummary>('GET', '/api/nalozi/reports/summary', { params: { from: fromIso, to: toIso }, safeToRetry: true, signal });
 
@@ -200,28 +204,40 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized }:
     send<PageResponse<PartResponse>>('GET', '/api/parts', { params: { q, ...opts }, safeToRetry: true, signal });
 
   // admin-only on the server
-  const listStockMovements = (id: number, signal?: AbortSignal) =>
-    send<StockMovementView[]>('GET', `/api/parts/${id}/movements`, { safeToRetry: true, signal });
   const createPart = (req: CreatePartRequest) =>
     send<PartResponse>('POST', '/api/parts', { data: req, safeToRetry: false });
   const updatePart = (id: number, req: UpdatePartRequest) =>
     send<PartResponse>('PUT', `/api/parts/${id}`, { data: req, safeToRetry: true });
-  const adjustStock = (id: number, req: StockAdjustRequest) =>
-    send<PartResponse>('POST', `/api/parts/${id}/stock`, { data: req, safeToRetry: false });
+  // CSV text (sifra;naziv;jedinica mere) from BiznisSOFT; importing the same file twice just updates the same rows
+  const importParts = (csv: string) =>
+    send<ImportResult>('POST', '/api/parts/import', { data: csv, headers: { 'Content-Type': 'text/csv' }, safeToRetry: true, timeout: 60_000 });
 
-  // ---- zaduzivanje (what a technician carries) ----
-  const listCarried = (technicianId?: number, signal?: AbortSignal) =>
-    send<CarriedView[]>('GET', '/api/carried', { params: technicianId == null ? {} : { technicianId }, safeToRetry: true, signal });
-  const addCarried = (req: CarriedRequest) =>
-    send<CarriedView>('POST', '/api/carried', { data: req, safeToRetry: false });
-  const updateCarried = (id: number, req: CarriedRequest) =>
-    send<CarriedView>('PUT', `/api/carried/${id}`, { data: req, safeToRetry: true });
-  const deleteCarried = (id: number) =>
-    send<{ ok: boolean }>('DELETE', `/api/carried/${id}`, { safeToRetry: false });
+  // ---- device types (anyone reads, admin-level adds) ----
+  const listApplianceTypes = (signal?: AbortSignal) =>
+    send<string[]>('GET', '/api/appliance-types', { safeToRetry: true, signal });
+  const addApplianceType = (name: string) =>
+    send<string[]>('POST', '/api/appliance-types', { data: { name }, safeToRetry: false });
+
+  // ---- zaduzenje / razduzenje documents (admin-level writes; a technician only reads his own; no delete exists) ----
+  const listStockDocs = (query: StockDocQuery = {}, signal?: AbortSignal) =>
+    send<PageResponse<StockDocSummary>>('GET', '/api/stock-docs', { params: query, safeToRetry: true, signal });
+  const fullStockDocs = (query: { type?: StockDocType; technicianId?: number; from?: string; to?: string } = {}, signal?: AbortSignal) =>
+    send<StockDocView[]>('GET', '/api/stock-docs/full', { params: query, safeToRetry: true, signal });
+  const getStockDoc = (id: number, signal?: AbortSignal) =>
+    send<StockDocView>('GET', `/api/stock-docs/${id}`, { safeToRetry: true, signal });
+  // Never retried: a repeat could create a second document with the next number.
+  const createStockDoc = (req: CreateStockDocRequest) =>
+    send<StockDocView>('POST', '/api/stock-docs', { data: req, safeToRetry: false });
+  const updateStockDoc = (id: number, req: UpdateStockDocRequest) =>
+    send<StockDocView>('PUT', `/api/stock-docs/${id}`, { data: req, safeToRetry: false });
+  const listStockRevisions = (id: number, signal?: AbortSignal) =>
+    send<StockRevisionView[]>('GET', `/api/stock-docs/${id}/revisions`, { safeToRetry: true, signal });
+  const getStockBalance = (query: { technicianId?: number; partId?: number; from?: string; to?: string } = {}, signal?: AbortSignal) =>
+    send<BalanceRow[]>('GET', '/api/stock-docs/balance', { params: query, safeToRetry: true, signal });
 
   return {
     newIdempotencyKey, submitNalog, updateNalog, deleteNalog, previewNalog, listNalozi, getNalog, getNalogHistory, changeStatus,
-    searchCustomers, listCustomers, getCustomer, createCustomer, updateCustomer, deleteCustomer, bulkDeleteNalozi, bulkAssignNalozi, bulkSetPartsActive, bulkDeleteCustomers, assignNalog, listTechnicians, getStats, getCalendar, setSchedule, getReportSummary, fetchReportCsv, listPhotos, uploadPhoto, deletePhoto, fetchPhotoBlob, listNotes, addNote, deleteNote, searchParts, listStockMovements, createPart, updatePart, adjustStock, listCarried, addCarried, updateCarried, deleteCarried,
+    searchCustomers, listCustomers, getCustomer, createCustomer, updateCustomer, deleteCustomer, bulkDeleteNalozi, bulkAssignNalozi, bulkSetPartsActive, bulkDeleteCustomers, assignNalog, listTechnicians, getStats, getCalendar, setSchedule, getReportSummary, getCountsReport, fetchReportCsv, listPhotos, uploadPhoto, deletePhoto, fetchPhotoBlob, listNotes, addNote, deleteNote, searchParts, createPart, updatePart, importParts, listApplianceTypes, addApplianceType, listStockDocs, fullStockDocs, getStockDoc, createStockDoc, updateStockDoc, listStockRevisions, getStockBalance,
   };
 }
 

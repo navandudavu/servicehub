@@ -22,15 +22,17 @@ export default function Layout({ children }) {
     { to: '/nalozi', label: t('nav_nalozi') },
     { to: '/calendar', label: t('nav_calendar') },
     { to: '/customers', label: t('nav_customers') },
-    { to: '/carried', label: t('nav_carried') },
-    { to: '/parts', label: t('nav_parts') },
   ];
   const adminNavItems = [
+    { to: '/zaduzenje', label: t('nav_zaduzenje') },
+    { to: '/razduzenje', label: t('nav_razduzenje') },
+    { to: '/parts', label: t('nav_parts') },
     { to: '/reports', label: t('nav_reports') },
     { to: '/team', label: t('nav_team') },
   ];
+  // Zaduzenje, Razduzenje and Magacin are admin-level (technicians use the phone); Reports and Team are admin only.
   const items = isAdminLevel(user?.role)
-    ? [...navItems, ...adminNavItems.filter((i) => i.to !== '/team' || isOwner(user?.role))]
+    ? [...navItems, ...adminNavItems.filter((i) => (i.to !== '/team' && i.to !== '/reports') || isOwner(user?.role))]
     : navItems;
 
   return (

@@ -25,8 +25,9 @@ public class PartController {
         this.directory = directory;
     }
 
-    /** Inventory list and lookup. Everybody signed in may read it; only admin-level creates or edits parts. */
+    /** Magacin list and search. Admin-level only: technicians do not use the Magacin, they only read their own documents. */
     @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public PageResponse<PartResponse> search(
             @RequestParam(required = false) String q,
             @RequestParam(defaultValue = "true") boolean onlyActive,
@@ -39,7 +40,7 @@ public class PartController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PartResponse> create(@Valid @RequestBody CreatePartRequest request,
                                                @AuthenticationPrincipal Jwt jwt) {
-        PartResponse created = partService.create(request, directory.resolve(jwt));
+        PartResponse created = partService.create(request);
         return ResponseEntity.created(ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}").buildAndExpand(created.id()).toUri()).body(created);
     }
@@ -57,17 +58,10 @@ public class PartController {
         return new BulkDtos.BulkResult(partService.setActiveMany(request.ids(), request.active()));
     }
 
-    /** Any signed-in user: technicians see the stock history too (who changed what). */
-    @GetMapping("/{id}/movements")
-    public java.util.List<StockMovementView> movements(@PathVariable Long id) {
-        return partService.movements(id);
-    }
-
-    /** Any signed-in user may correct stock (every change is written to the ledger with the actor's name). */
-    @PostMapping("/{id}/stock")
-    public PartResponse adjustStock(@PathVariable Long id,
-                                    @Valid @RequestBody StockAdjustRequest request,
-                                    @AuthenticationPrincipal Jwt jwt) {
-        return partService.adjustStock(id, request, directory.resolve(jwt));
+    /** Admin only: CSV text (sifra;naziv;jedinica mere) exported from BiznisSOFT, as the request body. */
+    @PostMapping(value = "/import", consumes = {"text/csv", "text/plain"})
+    @PreAuthorize("hasRole('ADMIN')")
+    public ImportResult importCsv(@RequestBody String csv) {
+        return partService.importCsv(csv);
     }
 }
