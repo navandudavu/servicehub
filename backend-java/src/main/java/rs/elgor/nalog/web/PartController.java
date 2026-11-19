@@ -58,7 +58,7 @@ public class PartController {
         return new BulkDtos.BulkResult(partService.setActiveMany(request.ids(), request.active()));
     }
 
-    /** Admin only: CSV text (sifra;naziv;jedinica mere) exported from BiznisSOFT, as the request body. */
+    /** Admin only: CSV text (sifra;naziv;jedinica mere) from a CSV file, as the request body. */
     @PostMapping(value = "/import", consumes = {"text/csv", "text/plain"})
     @PreAuthorize("hasRole('ADMIN')")
     public ImportResult importCsv(@RequestBody String csv) {

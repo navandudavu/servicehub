@@ -131,7 +131,7 @@ Dve kartice, **Zaduživanje** i **Razduživanje**, isti izgled kao u starom prog
 | GET | `/api/nalozi/customers`, `/technicians`, `/stats`, `/calendar` | po pravilu pristupa / admin |
 | GET | `/api/nalozi/reports/summary`, `/reports/export.csv` | admin |
 | GET | `/api/parts` | prijavljeni (magacin = šifra, naziv, jedinica mere; bez cene i stanja) |
-| POST/PUT | `/api/parts`, `/api/parts/{id}` | administrator / menadžer (uvoz iz BiznisSOFT-a: CSV na stranici Magacin) |
+| POST/PUT | `/api/parts`, `/api/parts/{id}` | administrator / menadžer (uvoz iz CSV datoteke na stranici Magacin) |
 | GET | `/api/stock-docs`, `/full`, `/{id}` | admin-nivo: svi; serviser: samo svoji |
 | POST, PUT | `/api/stock-docs`, `/api/stock-docs/{id}` | administrator / menadžer (nema DELETE) |
 | GET | `/api/stock-docs/balance` | samo administrator (izveštaj) |

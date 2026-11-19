@@ -216,7 +216,7 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized, r
     send<PartResponse>('POST', '/api/parts', { data: req, safeToRetry: false });
   const updatePart = (id: number, req: UpdatePartRequest) =>
     send<PartResponse>('PUT', `/api/parts/${id}`, { data: req, safeToRetry: true });
-  // CSV text (sifra;naziv;jedinica mere) from BiznisSOFT; importing the same file twice just updates the same rows
+  // CSV text (sifra;naziv;jedinica mere) from a CSV file; importing the same file twice just updates the same rows
   const importParts = (csv: string) =>
     send<ImportResult>('POST', '/api/parts/import', { data: csv, headers: { 'Content-Type': 'text/csv' }, safeToRetry: true, timeout: 60_000 });
 

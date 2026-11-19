@@ -213,7 +213,7 @@ function PartFormModal({ part, onClose, onSaved }: { part: PartResponse | null; 
   );
 }
 
-/** Import the Magacin from BiznisSOFT: a CSV file with sifra;naziv;jedinica mere. Importing a file again only updates the same rows. */
+/** Import the Magacin from a CSV file: a CSV file with sifra;naziv;jedinica mere. Importing a file again only updates the same rows. */
 function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const { t } = useLang();
   const [csv, setCsv] = useState('');
@@ -226,7 +226,7 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
     const f = e.target.files?.[0];
     if (!f) return;
     setFileName(f.name);
-    // BiznisSOFT exports are often Windows-1250, not UTF-8: try UTF-8 strictly, fall back to 1250 so the letters survive.
+    // CSV exports from older Windows programs are often Windows-1250, not UTF-8: try UTF-8 strictly, fall back to 1250 so the letters survive.
     const buf = await f.arrayBuffer();
     try { setCsv(new TextDecoder('utf-8', { fatal: true }).decode(buf)); }
     catch { setCsv(new TextDecoder('windows-1250').decode(buf)); }

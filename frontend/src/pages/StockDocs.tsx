@@ -22,7 +22,7 @@ const toLocalInput = (iso: string | Date) => {
 };
 
 /**
- * Zaduzenje / Razduzenje (one page for both, chosen by `type`; the old BiznisSOFT screen is the model):
+ * Zaduzenje / Razduzenje (one page for both, chosen by `type`; the old software's screen is the model):
  * technician, date and time, a part found by search only, quantity, the item grid, Snimi / Odustani.
  * Documents are numbered by the server and never deleted; an edit keeps the old version in the history.
  * Admin and manager only: a technician reads his own documents on the phone.

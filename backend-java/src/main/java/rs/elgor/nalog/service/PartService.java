@@ -75,7 +75,7 @@ public class PartService {
     }
 
     /**
-     * Import from BiznisSOFT: CSV text with sifra, naziv, jedinica mere (separator ; or , or tab, optional header row).
+     * Import: CSV text with sifra, naziv, jedinica mere (separator ; or , or tab, optional header row).
      * Existing sifra = name and unit are updated (and the part is reactivated); new sifra = created. Bad lines are
      * skipped and reported, the rest is imported - all in ONE transaction.
      */
