@@ -37,11 +37,14 @@ public class StockDocService {
     private final StockDocLineRepository lines;
     private final PartRepository parts;
     private final AppUserRepository users;
+    private final NalogEventService events;
 
     @PersistenceContext
     private EntityManager em;
 
-    public StockDocService(StockDocRepository docs, StockDocLineRepository lines, PartRepository parts, AppUserRepository users) {
+    public StockDocService(StockDocRepository docs, StockDocLineRepository lines, PartRepository parts, AppUserRepository users,
+                           NalogEventService events) {
+        this.events = events;
         this.docs = docs;
         this.lines = lines;
         this.parts = parts;
@@ -94,7 +97,10 @@ public class StockDocService {
         d.setCreatedBy(actor.id());
         d.setCreatedByName(actor.name());
         fillLines(d, req.lines());
-        return view(docs.saveAndFlush(d));
+        lockTechnician(d.getTechnicianId());
+        docs.saveAndFlush(d);
+        requireNotNegative(List.of(d.getTechnicianId()));
+        return view(d);
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -102,6 +108,12 @@ public class StockDocService {
         requireAdmin(actor);
         StockDoc d = docs.findById(id).orElseThrow(() -> NalogException.notFound("Dokument ne postoji"));
         requireTechnician(req.technicianId());
+        if (d.getNalogId() != null && d.getTechnicianId() != req.technicianId()) {
+            throw NalogException.invalid("Razduženje iz naloga ne može da se prebaci na drugog servisera");
+        }
+        long oldTech = d.getTechnicianId();
+        lockTechnician(Math.min(oldTech, req.technicianId()));
+        lockTechnician(Math.max(oldTech, req.technicianId()));
         saveRevision(d, actor);                         // the version being replaced, kept for good
         d.setTechnicianId(req.technicianId());
         d.setDocAt(req.docAt());
@@ -109,7 +121,34 @@ public class StockDocService {
         d.getLines().clear();
         docs.flush();                                   // orphan delete first, then the new lines
         fillLines(d, req.lines());
-        return view(docs.saveAndFlush(d));
+        docs.saveAndFlush(d);
+        requireNotNegative(List.of(oldTech, d.getTechnicianId()));
+        if (d.getNalogId() != null) {                   // the nalog's Materijal is this document: its timeline shows the change
+            events.record(d.getNalogId(), actor, "MATERIAL", "Razduženje br. " + d.getDocNo() + " izmenjeno: "
+                    + d.getLines().stream().map(l -> l.getName() + " x " + l.getQuantity().stripTrailingZeros().toPlainString())
+                    .collect(Collectors.joining("; ")));
+        }
+        return view(d);
+    }
+
+    /** A technician can never be left with less than he was issued: no RAZ above the ZAD, no ZAD cut below what was used. */
+    private void requireNotNegative(Collection<Long> technicianIds) {
+        for (long tech : new TreeSet<>(technicianIds)) {
+            Map<Long, BigDecimal> sum = new HashMap<>();
+            Map<Long, String> name = new HashMap<>();
+            for (StockDocLine l : lines.linesBefore(tech, FAR_FUTURE)) {
+                if (l.getPartId() == null) {
+                    continue;
+                }
+                sum.merge(l.getPartId(), l.getDoc().getType() == StockDoc.Type.ZAD ? l.getQuantity() : l.getQuantity().negate(), BigDecimal::add);
+                name.put(l.getPartId(), l.getName());
+            }
+            sum.forEach((part, q) -> {
+                if (q.signum() < 0) {
+                    throw NalogException.invalid("Serviser nema dovoljno zaduženo: " + name.get(part));
+                }
+            });
+        }
     }
 
     /**
