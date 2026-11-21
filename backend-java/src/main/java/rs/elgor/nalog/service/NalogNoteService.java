@@ -25,10 +25,12 @@ public class NalogNoteService {
 
     private final NalogNoteRepository notes;
     private final NalogService nalogService;
+    private final NalogEventService events;
 
-    public NalogNoteService(NalogNoteRepository notes, NalogService nalogService) {
+    public NalogNoteService(NalogNoteRepository notes, NalogService nalogService, NalogEventService events) {
         this.notes = notes;
         this.nalogService = nalogService;
+        this.events = events;
     }
 
     private static void requireNotCompleted(Nalog nalog) {
@@ -39,7 +41,7 @@ public class NalogNoteService {
 
     @Transactional(readOnly = true)
     public List<NoteView> list(Long nalogId, AuthUser actor) {
-        nalogService.loadAccessible(nalogId, actor);
+        nalogService.loadReadable(nalogId, actor);
         return notes.findByNalogIdOrderByCreatedAtAscIdAsc(nalogId).stream().map(NoteView::from).toList();
     }
 
@@ -58,7 +60,9 @@ public class NalogNoteService {
         n.setAuthorId(actor == null ? null : actor.id());
         n.setAuthorName(actor == null ? "unknown" : actor.name());
         n.setBody(body);
-        return NoteView.from(notes.saveAndFlush(n));
+        NoteView saved = NoteView.from(notes.saveAndFlush(n));
+        events.record(nalogId, actor, "NOTE", "Konstatacija: " + (body.length() > 160 ? body.substring(0, 160) + "…" : body));
+        return saved;
     }
 
     /** Admin only. Notes are a record; technicians correct a mistake by adding a newer note. */
@@ -71,5 +75,6 @@ public class NalogNoteService {
         NalogNote n = notes.findByIdAndNalogId(noteId, nalogId)
                 .orElseThrow(() -> NalogException.notFound("Note " + noteId + " not found"));
         notes.delete(n);
+        events.record(nalogId, actor, "NOTE", "Obrisana konstatacija");
     }
 }

@@ -16,6 +16,7 @@ import Reports from './pages/Reports';
 import Parts from './pages/Parts';
 import StockDocs from './pages/StockDocs';
 import StockDocPrintPage from './pages/StockDocPrintPage';
+import StockStatus from './pages/StockStatus';
 import { isAdminLevel, isOwner } from './context/roles';
 
 function RequireAuth({ children }) {
@@ -71,6 +72,9 @@ export default function App() {
       } />
       <Route path="/razduzenje" element={
         <RequireAuth><RequireAdmin><Layout><StockDocs type="RAZ" /></Layout></RequireAdmin></RequireAuth>
+      } />
+      <Route path="/stock-status" element={
+        <RequireAuth><RequireAdmin><Layout><StockStatus /></Layout></RequireAdmin></RequireAuth>
       } />
       <Route path="/stock-docs/print" element={
         <RequireAuth><RequireAdmin><StockDocPrintPage /></RequireAdmin></RequireAuth>

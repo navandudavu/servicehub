@@ -63,6 +63,17 @@ public class StockDocController {
         return service.balance(technicianId, partId, from, to, directory.resolve(jwt));
     }
 
+    /**
+     * The parts a technician holds (name, sku, unit; no quantity). A technician always gets his own list; admin-level
+     * users pass technicianId. Used by the Android "Magacin" tab and by the picker of a nalog's Materijal.
+     */
+    @GetMapping("/held")
+    public List<HeldPart> held(@RequestParam(required = false) Long technicianId,
+                               @RequestParam(required = false) String q,
+                               @AuthenticationPrincipal Jwt jwt) {
+        return service.heldParts(technicianId, q, directory.resolve(jwt));
+    }
+
     @GetMapping("/{id}")
     public DocView get(@PathVariable Long id, @AuthenticationPrincipal Jwt jwt) {
         return service.get(id, directory.resolve(jwt));

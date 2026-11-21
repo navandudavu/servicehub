@@ -1,4 +1,4 @@
-import type { NalogResponse, NalogStatus, NoteView, PaymentType } from '../types/nalog';
+import type { MaterialLine, NalogResponse, NalogStatus, NoteView, PaymentType } from '../types/nalog';
 import { formatMoney } from '../print/formatMoney';
 
 // A device type an admin added is printed by its own name.
@@ -53,6 +53,8 @@ export const PRINT_CSS = `
   .nalog-print.sheet-break { break-after: page; page-break-after: always; }
   .nalog-print .copy { text-align: right; font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
   .nalog-print footer { margin-top: 12mm; font-size: 10px; color: #5C6B75; }
+  .nalog-print .stamp { text-align: right; margin-top: 6mm; break-inside: avoid; page-break-inside: avoid; }
+  .nalog-print .stamp img { height: 28mm; width: auto; }
   @media print { .no-print { display: none !important; } }
 `;
 
@@ -60,21 +62,21 @@ export const PRINT_CSS = `
  * A nalog is always printed twice, one page each: the technician's copy and the customer's copy (both signed).
  * The revers (device taken into the workshop) stays a single page.
  */
-export function NalogPrint({ nalog, notes, company, revers = false }: { nalog: NalogResponse; notes: NoteView[]; company: CompanyInfo; revers?: boolean }) {
+export function NalogPrint({ nalog, notes, company, revers = false, material = [] }: { nalog: NalogResponse; notes: NoteView[]; company: CompanyInfo; revers?: boolean; material?: MaterialLine[] }) {
   if (revers) {
-    return <div><style>{PRINT_CSS}</style><NalogSheet nalog={nalog} notes={notes} company={company} revers /></div>;
+    return <div><style>{PRINT_CSS}</style><NalogSheet nalog={nalog} notes={notes} material={material} company={company} revers /></div>;
   }
   return (
     <div>
       <style>{PRINT_CSS}</style>
-      <NalogSheet nalog={nalog} notes={notes} company={company} copy="Primerak servisera" pageBreak />
-      <NalogSheet nalog={nalog} notes={notes} company={company} copy="Primerak korisnika" />
+      <NalogSheet nalog={nalog} notes={notes} material={material} company={company} copy="Primerak servisera" pageBreak />
+      <NalogSheet nalog={nalog} notes={notes} material={material} company={company} copy="Primerak korisnika" />
     </div>
   );
 }
 
-function NalogSheet({ nalog, notes, company, revers = false, copy, pageBreak = false }:
-  { nalog: NalogResponse; notes: NoteView[]; company: CompanyInfo; revers?: boolean; copy?: string; pageBreak?: boolean }) {
+function NalogSheet({ nalog, notes, material, company, revers = false, copy, pageBreak = false }:
+  { nalog: NalogResponse; notes: NoteView[]; material: MaterialLine[]; company: CompanyInfo; revers?: boolean; copy?: string; pageBreak?: boolean }) {
   const c = nalog.customer;
   const a = nalog.appliance;
   return (
@@ -133,6 +135,13 @@ function NalogSheet({ nalog, notes, company, revers = false, copy, pageBreak = f
         </div>
       )}
 
+      {material.length > 0 && (
+        <div className="box" style={{ marginBottom: 14 }}>
+          <h2>Materijal</h2>
+          {material.map((m) => <div key={m.lineId}>{m.name}{m.sku ? ` (${m.sku})` : ''} — {m.quantity} {m.unit}</div>)}
+        </div>
+      )}
+
       {nalog.status === 'CANCELLED' && (
         <div className="box" style={{ marginBottom: 14 }}>
           <h2>Razlog otkazivanja</h2>
@@ -155,6 +164,8 @@ function NalogSheet({ nalog, notes, company, revers = false, copy, pageBreak = f
       </div>
         </>
       )}
+
+      <div className="stamp"><img src="/elgor-stamp.png" alt="" /></div>
 
       <footer>
         {company.warranty && <div style={{ marginBottom: 4 }}>{company.warranty}</div>}

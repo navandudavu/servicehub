@@ -45,6 +45,10 @@ public class StockDoc {
     @Column(name = "updated_by_name", length = 150)
     private String updatedByName;
 
+    /** Set when the document was made automatically from the Materijal of a nalog. */
+    @Column(name = "nalog_id")
+    private Long nalogId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

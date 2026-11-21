@@ -62,7 +62,8 @@ export default function StockDocPrintPage() {
   }, [id, type, technicianId, from, to]);
 
   const fmt = (iso: string) => new Date(iso).toLocaleString(lang === 'sr' ? 'sr-Latn-RS' : 'en-GB', { timeZone: 'Europe/Belgrade' });
-  const back = () => navigate(id && docs?.[0] ? (docs[0].type === 'ZAD' ? '/zaduzenje' : '/razduzenje') : (type === 'RAZ' ? '/razduzenje' : '/zaduzenje'));
+  const backTo = search.get('back');
+  const back = () => navigate(backTo ?? (id && docs?.[0] ? (docs[0].type === 'ZAD' ? '/zaduzenje' : '/razduzenje') : (type === 'RAZ' ? '/razduzenje' : '/zaduzenje')));
 
   return (
     <div style={{ background: '#fff', minHeight: '100vh', padding: 24 }}>

@@ -181,6 +181,7 @@ export interface NalogListQuery {
   to?: string;   // ISO instant, nalozi created before
   page?: number;
   size?: number;
+  archive?: boolean; // technician: the nalozi that were taken away from him (read-only)
 }
 
 /** PATCH /api/nalozi/{id}/status */
@@ -331,6 +332,8 @@ export interface StockDocSummary {
   docAt: string;
   createdByName: string;
   lineCount: number;
+  nalogId: number | null;
+  nalogNumber: string | null;
 }
 
 export interface StockDocView {
@@ -343,6 +346,8 @@ export interface StockDocView {
   createdByName: string;
   updatedByName: string | null;
   lines: StockLineView[];
+  nalogId: number | null;
+  nalogNumber: string | null;
 }
 
 export interface StockRevisionView {
@@ -456,3 +461,33 @@ export interface BulkCustomerDelete {
 /** Mirrors CountsReport.java (GET /api/nalozi/reports/counts, owner only): nalozi per worker and status. */
 export interface CountsRow { technician: string; byStatus: Record<string, number>; total: number }
 export interface CountsReport { from: string; to: string; rows: CountsRow[]; totals: CountsRow }
+
+/** Mirrors NalogEventView.java: one line of a nalog's complete history (kind: STATUS, CREATED, ASSIGN, EDIT, NOTE, PHOTO, MATERIAL, SCHEDULE, CANCEL). */
+export interface NalogEventView {
+  at: string;
+  by: string | null;
+  kind: string;
+  detail: string | null;
+}
+
+/** A part a technician holds. Deliberately no quantity. */
+export interface HeldPart {
+  partId: number;
+  sku: string | null;
+  name: string;
+  unit: string;
+}
+
+/** Material used on a nalog = a line of the automatic Razduzenje. */
+export interface MaterialLine {
+  lineId: number;
+  docId: number;
+  docNo: number;
+  partId: number | null;
+  sku: string | null;
+  name: string;
+  unit: string;
+  quantity: DecimalString;
+  byName: string;
+  at: string;
+}
