@@ -93,6 +93,7 @@ public class FcmPushSender implements PushSender {
                 SendResponse r = results.get(i);
                 if (!r.isSuccessful() && r.getException() != null) {
                     MessagingErrorCode code = r.getException().getMessagingErrorCode();
+                    log.warn("Push to user {} failed: {} ({})", userId, code, r.getException().getMessage());
                     if (code == MessagingErrorCode.UNREGISTERED || code == MessagingErrorCode.INVALID_ARGUMENT) {
                         dead.add(list.get(i));
                     }
