@@ -37,11 +37,14 @@ public class StockDocService {
     private final StockDocLineRepository lines;
     private final PartRepository parts;
     private final AppUserRepository users;
+    private final NalogEventService events;
 
     @PersistenceContext
     private EntityManager em;
 
-    public StockDocService(StockDocRepository docs, StockDocLineRepository lines, PartRepository parts, AppUserRepository users) {
+    public StockDocService(StockDocRepository docs, StockDocLineRepository lines, PartRepository parts, AppUserRepository users,
+                           NalogEventService events) {
+        this.events = events;
         this.docs = docs;
         this.lines = lines;
         this.parts = parts;
@@ -57,8 +60,10 @@ public class StockDocService {
                 PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100),
                         Sort.by(Sort.Direction.DESC, "docAt").and(Sort.by(Sort.Direction.DESC, "id"))));
         Map<Long, String> names = names(result.getContent().stream().map(StockDoc::getTechnicianId).toList());
+        Map<Long, String> nalozi = nalogNumbers(result.getContent());
         return PageResponse.of(result.map(d -> new DocSummary(d.getId(), d.getType(), d.getDocNo(), d.getTechnicianId(),
-                names.getOrDefault(d.getTechnicianId(), "?"), d.getDocAt(), d.getCreatedByName(), d.getLines().size())));
+                names.getOrDefault(d.getTechnicianId(), "?"), d.getDocAt(), d.getCreatedByName(), d.getLines().size(),
+                d.getNalogId(), d.getNalogId() == null ? null : nalozi.get(d.getNalogId()))));
     }
 
     /** Complete documents with all their lines (for printing a technician's whole list / the full report), oldest first, at most 500. */
@@ -92,7 +97,10 @@ public class StockDocService {
         d.setCreatedBy(actor.id());
         d.setCreatedByName(actor.name());
         fillLines(d, req.lines());
-        return view(docs.saveAndFlush(d));
+        lockTechnician(d.getTechnicianId());
+        docs.saveAndFlush(d);
+        requireNotNegative(List.of(d.getTechnicianId()));
+        return view(d);
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -100,6 +108,12 @@ public class StockDocService {
         requireAdmin(actor);
         StockDoc d = docs.findById(id).orElseThrow(() -> NalogException.notFound("Dokument ne postoji"));
         requireTechnician(req.technicianId());
+        if (d.getNalogId() != null && d.getTechnicianId() != req.technicianId()) {
+            throw NalogException.invalid("Razduženje iz naloga ne može da se prebaci na drugog servisera");
+        }
+        long oldTech = d.getTechnicianId();
+        lockTechnician(Math.min(oldTech, req.technicianId()));
+        lockTechnician(Math.max(oldTech, req.technicianId()));
         saveRevision(d, actor);                         // the version being replaced, kept for good
         d.setTechnicianId(req.technicianId());
         d.setDocAt(req.docAt());
@@ -107,7 +121,34 @@ public class StockDocService {
         d.getLines().clear();
         docs.flush();                                   // orphan delete first, then the new lines
         fillLines(d, req.lines());
-        return view(docs.saveAndFlush(d));
+        docs.saveAndFlush(d);
+        requireNotNegative(List.of(oldTech, d.getTechnicianId()));
+        if (d.getNalogId() != null) {                   // the nalog's Materijal is this document: its timeline shows the change
+            events.record(d.getNalogId(), actor, "MATERIAL", "Razduženje br. " + d.getDocNo() + " izmenjeno: "
+                    + d.getLines().stream().map(l -> l.getName() + " x " + l.getQuantity().stripTrailingZeros().toPlainString())
+                    .collect(Collectors.joining("; ")));
+        }
+        return view(d);
+    }
+
+    /** A technician can never be left with less than he was issued: no RAZ above the ZAD, no ZAD cut below what was used. */
+    private void requireNotNegative(Collection<Long> technicianIds) {
+        for (long tech : new TreeSet<>(technicianIds)) {
+            Map<Long, BigDecimal> sum = new HashMap<>();
+            Map<Long, String> name = new HashMap<>();
+            for (StockDocLine l : lines.linesBefore(tech, FAR_FUTURE)) {
+                if (l.getPartId() == null) {
+                    continue;
+                }
+                sum.merge(l.getPartId(), l.getDoc().getType() == StockDoc.Type.ZAD ? l.getQuantity() : l.getQuantity().negate(), BigDecimal::add);
+                name.put(l.getPartId(), l.getName());
+            }
+            sum.forEach((part, q) -> {
+                if (q.signum() < 0) {
+                    throw NalogException.invalid("Serviser nema dovoljno zaduženo: " + name.get(part));
+                }
+            });
+        }
     }
 
     /**
@@ -173,7 +214,7 @@ public class StockDocService {
         return rows.stream().map(r -> new RevisionView(DbTime.toInstant(r[0]), (String) r[1], (String) r[2])).toList();
     }
 
-    private void saveRevision(StockDoc d, AuthUser actor) {
+    void saveRevision(StockDoc d, AuthUser actor) {
         String items = d.getLines().stream()
                 .map(l -> (l.getSku() == null ? "" : l.getSku() + " ") + l.getName() + " x " + l.getQuantity().toPlainString() + " " + l.getUnit())
                 .collect(Collectors.joining("; "));
@@ -212,7 +253,7 @@ public class StockDocService {
         }
     }
 
-    private void fillLines(StockDoc d, List<LineRequest> reqs) {
+    void fillLines(StockDoc d, List<LineRequest> reqs) {
         Map<Long, Part> byId = parts.findAllById(reqs.stream().map(LineRequest::partId).distinct().toList())
                 .stream().collect(Collectors.toMap(Part::getId, p -> p));
         for (LineRequest r : reqs) {
@@ -238,6 +279,71 @@ public class StockDocService {
     private DocView view(StockDoc d) {
         return new DocView(d.getId(), d.getType(), d.getDocNo(), d.getTechnicianId(),
                 names(List.of(d.getTechnicianId())).getOrDefault(d.getTechnicianId(), "?"), d.getDocAt(),
-                d.getCreatedByName(), d.getUpdatedByName(), d.getLines().stream().map(LineView::from).toList());
+                d.getCreatedByName(), d.getUpdatedByName(), d.getLines().stream().map(LineView::from).toList(),
+                d.getNalogId(), d.getNalogId() == null ? null : nalogNumbers(List.of(d)).get(d.getNalogId()));
+    }
+
+    /** nalog id -> number for the documents that came from a nalog (one query, not one per document). */
+    private Map<Long, String> nalogNumbers(Collection<StockDoc> docs) {
+        List<Long> ids = docs.stream().map(StockDoc::getNalogId).filter(Objects::nonNull).distinct().toList();
+        Map<Long, String> out = new HashMap<>();
+        if (ids.isEmpty()) {
+            return out;
+        }
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = em.createNativeQuery("SELECT id, nalog_number FROM nalog WHERE id IN (:ids)")
+                .setParameter("ids", ids).getResultList();
+        for (Object[] r : rows) {
+            out.put(((Number) r[0]).longValue(), (String) r[1]);
+        }
+        return out;
+    }
+
+    /** What a technician holds right now: only parts with zaduzeno - razduzeno above zero. Quantities stay internal. */
+    public record Held(Long partId, String sku, String name, String unit, BigDecimal quantity) {}
+
+    @Transactional(readOnly = true)
+    public List<Held> held(long technicianId) {
+        Map<Long, Held> acc = new LinkedHashMap<>();
+        for (StockDocLine l : lines.linesBefore(technicianId, FAR_FUTURE)) {
+            if (l.getPartId() == null) {
+                continue;
+            }
+            BigDecimal signed = l.getDoc().getType() == StockDoc.Type.ZAD ? l.getQuantity() : l.getQuantity().negate();
+            acc.merge(l.getPartId(), new Held(l.getPartId(), l.getSku(), l.getName(), l.getUnit(), signed),
+                    (a, b) -> new Held(a.partId(), b.sku(), b.name(), b.unit(), a.quantity().add(b.quantity())));
+        }
+        return acc.values().stream().filter(h -> h.quantity().signum() > 0)
+                .sorted(Comparator.comparing(Held::name, String.CASE_INSENSITIVE_ORDER)).toList();
+    }
+
+    /** The parts list a technician sees in "Magacin" (also the picker of the nalog's Materijal): name, sku, unit - no quantity. */
+    @Transactional(readOnly = true)
+    public List<HeldPart> heldParts(Long technicianId, String q, AuthUser actor) {
+        if (actor == null) {
+            throw NalogException.forbidden("Permission denied");
+        }
+        long tech;
+        if (actor.isAdmin()) {
+            if (technicianId == null) {
+                throw NalogException.invalid("Izaberite servisera");
+            }
+            tech = technicianId;
+        } else {
+            if (technicianId != null && technicianId != actor.id()) {
+                throw NalogException.forbidden("Permission denied");
+            }
+            tech = actor.id();
+        }
+        String needle = q == null ? "" : q.trim().toLowerCase();
+        return held(tech).stream()
+                .filter(h -> needle.isEmpty() || h.name().toLowerCase().contains(needle)
+                        || (h.sku() != null && h.sku().toLowerCase().contains(needle)))
+                .map(h -> new HeldPart(h.partId(), h.sku(), h.name(), h.unit())).toList();
+    }
+
+    /** Serialises material changes per technician, so two saves cannot both spend the same last piece. */
+    void lockTechnician(long technicianId) {
+        em.createNativeQuery("SELECT id FROM app_user WHERE id = :id FOR UPDATE").setParameter("id", technicianId).getResultList();
     }
 }

@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import rs.elgor.nalog.domain.StockDoc;
 
 import java.time.Instant;
+import java.util.List;
 
 public interface StockDocRepository extends JpaRepository<StockDoc, Long> {
 
@@ -18,6 +19,8 @@ public interface StockDocRepository extends JpaRepository<StockDoc, Long> {
     Page<StockDoc> search(@Param("anyType") boolean anyType, @Param("type") StockDoc.Type type,
                           @Param("technicianId") long technicianId,
                           @Param("from") Instant from, @Param("to") Instant to, Pageable pageable);
+
+    List<StockDoc> findByNalogIdOrderByDocAtAscIdAsc(Long nalogId);
 
     @Query(value = "select nextval('stock_doc_zad_seq')", nativeQuery = true)
     long nextZadNo();

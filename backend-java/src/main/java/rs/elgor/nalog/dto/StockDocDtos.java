@@ -55,7 +55,9 @@ public final class StockDocDtos {
             String technicianName,
             Instant docAt,
             String createdByName,
-            int lineCount
+            int lineCount,
+            Long nalogId,
+            String nalogNumber
     ) {}
 
     public record DocView(
@@ -67,7 +69,9 @@ public final class StockDocDtos {
             Instant docAt,
             String createdByName,
             String updatedByName,
-            List<LineView> lines
+            List<LineView> lines,
+            Long nalogId,
+            String nalogNumber
     ) {}
 
     /** An earlier version of an edited document: who replaced it, when, and what it said. */
@@ -86,4 +90,25 @@ public final class StockDocDtos {
             @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal returned,
             @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal closing
     ) {}
+
+    /** A part a technician currently holds (zaduzeno - razduzeno > 0). Deliberately WITHOUT a quantity. */
+    public record HeldPart(Long partId, String sku, String name, String unit) {}
+
+    /** Material used on a nalog = a line of the automatic Razduzenje document. */
+    public record MaterialLine(
+            Long lineId,
+            Long docId,
+            long docNo,
+            Long partId,
+            String sku,
+            String name,
+            String unit,
+            @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal quantity,
+            String byName,
+            Instant at
+    ) {}
+
+    public record MaterialRequest(@NotEmpty @Size(max = 50) List<@Valid LineRequest> lines) {}
+
+    public record MaterialQtyRequest(@NotNull @DecimalMin("0.001") @Digits(integer = 9, fraction = 3) BigDecimal quantity) {}
 }

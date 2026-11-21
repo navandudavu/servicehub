@@ -33,6 +33,7 @@ public class NalogService {
     private final PricingCalculator pricing;
     private final NalogPushNotifier pushNotifier;
     private final NalogPhotoRepository photoRepository;
+    private final NalogEventService events;
 
     @PersistenceContext
     private EntityManager em;
@@ -45,7 +46,8 @@ public class NalogService {
                         AppUserRepository userRepository,
                         PricingCalculator pricing,
                         NalogPushNotifier pushNotifier,
-                        NalogPhotoRepository photoRepository) {
+                        NalogPhotoRepository photoRepository,
+                        NalogEventService events) {
         this.nalogRepository = nalogRepository;
         this.customerRepository = customerRepository;
         this.historyRepository = historyRepository;
@@ -55,6 +57,7 @@ public class NalogService {
         this.pricing = pricing;
         this.pushNotifier = pushNotifier;
         this.photoRepository = photoRepository;
+        this.events = events;
     }
 
     // ========================================================================
@@ -144,6 +147,8 @@ public class NalogService {
 
         // 7. Audit row - same transaction, so it exists if and only if the nalog does.
         recordHistory(saved.getId(), null, status, actor);
+        events.record(saved.getId(), actor, "CREATED",
+                "Nalog napravljen" + (assignee == null ? "" : ", dodeljen: " + assignee.getName()));
 
         log.info("Created nalog {} (customer {}, total {})", saved.getNalogNumber(), customer.getId(), saved.getTotal());
         return NalogResponse.from(saved);
@@ -210,6 +215,9 @@ public class NalogService {
         nalog.setStatus(target);
         Nalog saved = nalogRepository.saveAndFlush(nalog);
         recordHistory(saved.getId(), from, target, actor);
+        if (target == NalogStatus.CANCELLED) {
+            events.record(saved.getId(), actor, "CANCEL", "Razlog otkazivanja: " + saved.getCancelReason());
+        }
 
         log.info("Nalog {} {} -> {} by {}", saved.getNalogNumber(), from, target, actor == null ? "?" : actor.name());
         return NalogResponse.from(saved);
@@ -223,27 +231,54 @@ public class NalogService {
     public NalogResponse get(Long id, AuthUser actor) {
         Nalog n = nalogRepository.findById(id)
                 .orElseThrow(() -> NalogException.notFound("Nalog " + id + " not found"));
-        requireAccess(n, actor);
+        requireRead(n, actor);
         return NalogResponse.from(n);
+    }
+
+    /** Everything that ever happened to the nalog (status changes, edits, notes, photos, material, reassignments), oldest first. */
+    @Transactional(readOnly = true)
+    public List<NalogEventView> timeline(Long id, AuthUser actor) {
+        Nalog n = nalogRepository.findById(id)
+                .orElseThrow(() -> NalogException.notFound("Nalog " + id + " not found"));
+        requireRead(n, actor);
+        return events.timeline(id);
     }
 
     @Transactional(readOnly = true)
     public List<StatusHistoryView> history(Long id, AuthUser actor) {
         Nalog n = nalogRepository.findById(id)
                 .orElseThrow(() -> NalogException.notFound("Nalog " + id + " not found"));
-        requireAccess(n, actor);
+        requireRead(n, actor);
         return historyRepository.findByNalogIdOrderByChangedAtAscIdAsc(id).stream()
                 .map(StatusHistoryView::from).toList();
     }
 
-    @Transactional(readOnly = true)
     public PageResponse<NalogSummary> list(NalogStatus status, String q, Long assignedTo, Instant from, Instant to, int page, int size, AuthUser actor) {
+        return list(status, q, assignedTo, from, to, false, page, size, actor);
+    }
+
+    /**
+     * archive = true (technician): the nalozi that were taken away from him, newest first. They stay readable (with their
+     * whole timeline) but cannot be changed. Ignored for admin-level users, who see everything anyway.
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<NalogSummary> list(NalogStatus status, String q, Long assignedTo, Instant from, Instant to,
+                                           boolean archive, int page, int size, AuthUser actor) {
+        final boolean wantArchive = archive && actor != null && !actor.isAdmin();
+        final List<Long> pastIds = wantArchive ? events.pastNalogIds(actor.id()) : List.of();
         Specification<Nalog> spec = (root, query, cb) -> {
             List<Predicate> ps = new ArrayList<>();
             if (status != null) {
                 ps.add(cb.equal(root.get("status"), status));
             }
-            if (actor == null || !actor.isAdmin()) {
+            if (wantArchive) {
+                if (pastIds.isEmpty()) {
+                    ps.add(cb.disjunction());
+                } else {
+                    ps.add(root.<Long>get("id").in(pastIds));
+                    ps.add(cb.or(cb.isNull(root.get("assignedToId")), cb.notEqual(root.get("assignedToId"), actor.id())));
+                }
+            } else if (actor == null || !actor.isAdmin()) {
                 // Technicians only ever see what is assigned to them or what they created.
                 ps.add(cb.or(cb.equal(root.get("assignedToId"), actor == null ? -1L : actor.id()),
                              cb.equal(root.get("createdById"), actor == null ? -1L : actor.id())));
@@ -263,6 +298,7 @@ public class NalogService {
                         cb.like(cb.lower(root.get("nalogNumber")), like),
                         cb.like(cb.lower(c.get("fullName")), like),
                         cb.like(cb.lower(c.get("phone")), like),
+                        cb.like(cb.lower(c.get("address")), like),
                         cb.like(cb.lower(root.get("serialNumber")), like),
                         cb.like(cb.lower(root.get("applianceType")), like),
                         cb.like(cb.lower(root.get("applianceBrand")), like),
@@ -313,6 +349,16 @@ public class NalogService {
 
         PricingCalculator.Totals t = pricing.flat(req.price() != null ? req.price() : nalog.getTotal());
 
+        List<String> changed = new ArrayList<>();
+        if (!Objects.equals(nalog.getCustomer().getId(), customer.getId())) changed.add("kupac");
+        if (!Objects.equals(nalog.getApplianceType(), req.appliance().type().trim())
+                || !Objects.equals(nalog.getApplianceBrand(), req.appliance().brand().trim())
+                || !Objects.equals(nalog.getApplianceModel(), blankToNull(req.appliance().model()))
+                || !Objects.equals(nalog.getSerialNumber(), blankToNull(req.appliance().serialNumber()))) changed.add("uređaj");
+        if (!Objects.equals(nalog.getDiagnosis(), req.diagnosis().trim())) changed.add("dijagnoza");
+        if (nalog.getTotal() == null || nalog.getTotal().compareTo(t.total()) != 0) changed.add("cena");
+        if (!Objects.equals(nalog.getPaymentType(), req.paymentType())) changed.add("plaćanje");
+
         nalog.setCustomer(customer);
         nalog.setApplianceType(req.appliance().type().trim());
         nalog.setApplianceBrand(req.appliance().brand().trim());
@@ -328,6 +374,9 @@ public class NalogService {
         nalog.setPaymentType(req.paymentType());
 
         Nalog saved = nalogRepository.saveAndFlush(nalog);
+        if (!changed.isEmpty()) {
+            events.record(saved.getId(), actor, "EDIT", "Izmenjeno: " + String.join(", ", changed));
+        }
 
         log.info("Edited nalog {} by {} (total now {})", saved.getNalogNumber(), actor == null ? "?" : actor.name(), saved.getTotal());
         return NalogResponse.from(saved);
@@ -353,6 +402,15 @@ public class NalogService {
         nalog.setAssignedToName(assignee == null ? null : assignee.getName());
         log.info("Nalog {} assigned to {} by {}", nalog.getNalogNumber(), assignee == null ? "nobody" : assignee.getName(), actor.name());
         Nalog assigned = nalogRepository.saveAndFlush(nalog);
+        if (!Objects.equals(assignee == null ? null : assignee.getId(), previousAssignee)) {
+            String before = previousAssignee == null ? null : userRepository.findById(previousAssignee).map(AppUser::getName).orElse("?");
+            if (previousAssignee != null) {
+                events.addPastAssignee(assigned.getId(), previousAssignee);
+            }
+            events.record(assigned.getId(), actor, "ASSIGN",
+                    assignee == null ? "Uklonjen serviser" + (before == null ? "" : " (bio: " + before + ")")
+                                     : "Dodeljen: " + assignee.getName() + (before == null ? "" : " (prethodno: " + before + ")"));
+        }
         if (assignee != null && !Objects.equals(assignee.getId(), previousAssignee)
                 && !Objects.equals(assignee.getId(), actor.id())) {
             pushNotifier.notifyAssigned(assignee.getId(), assigned.getId(), assigned.getNalogNumber());
@@ -436,6 +494,23 @@ public class NalogService {
         }
     }
 
+    /** Like requireAccess, but a technician the nalog was taken away from may still LOOK at it (archive, read-only). */
+    private void requireRead(Nalog n, AuthUser actor) {
+        if (actor != null && !actor.isAdmin() && events.wasAssignee(n.getId(), actor.id())) {
+            return;
+        }
+        requireAccess(n, actor);
+    }
+
+    /** For sibling services' read paths (photo list/file, notes, material): same as loadAccessible plus the archive rule. */
+    @Transactional(readOnly = true)
+    public Nalog loadReadable(Long id, AuthUser actor) {
+        Nalog n = nalogRepository.findById(id)
+                .orElseThrow(() -> NalogException.notFound("Nalog " + id + " not found"));
+        requireRead(n, actor);
+        return n;
+    }
+
     /** Admin: set or clear the planned visit. Closed nalozi are history and cannot be rescheduled. */
     @Transactional(rollbackFor = Exception.class)
     public NalogResponse setSchedule(Long id, Instant scheduledAt, AuthUser actor) {
@@ -446,6 +521,9 @@ public class NalogService {
             throw NalogException.conflict("A completed or cancelled nalog cannot be rescheduled");
         }
         n.setScheduledAt(scheduledAt);
+        events.record(n.getId(), actor, "SCHEDULE", scheduledAt == null ? "Zakazivanje uklonjeno"
+                : "Zakazano: " + java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy.")
+                        .withZone(java.time.ZoneId.of("Europe/Belgrade")).format(scheduledAt));
         return NalogResponse.from(n);
     }
 

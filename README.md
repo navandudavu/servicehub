@@ -82,6 +82,13 @@ Kontrolna tabla i Kalendar čitaju naloge; administrator zakazuje planirani dola
 
 Dve kartice, **Zaduživanje** i **Razduživanje**, isti izgled kao u starom programu: broj dokumenta (posebni brojači, počinju od 1), datum i vreme, serviser, stavke (šifra, naziv, jedinica mere, količina). Deo se bira **samo pretragom** u magacinu. Dokument pišu i menjaju samo administrator i menadžer; serviser u Android aplikaciji (kartica *Magacin*) samo vidi svoje dokumente. **Brisanja nema**: svaka izmena čuva prethodnu verziju (ko, kada, šta je pisalo; `GET /api/stock-docs/{id}/revisions`). Dokumenti **ne pomeraju nikakve zalihe**. *Štampaj* štampa sve dokumente izabranog servisera (po datumu), API: `/api/stock-docs`. *Stanje materijala* (zaduženo − razduženo po serviseru i delu za period od/do) je izveštaj samo za administratora.
 
+## Materijal, arhiva i Status Magacina
+
+- **Materijal u nalogu (bez cene):** upotreba materijala automatski pravi razduženje (RAZ) servisera kome je nalog dodeljen. Serviser može samo da dodaje, i to samo delove koje trenutno drži (zaduženo − razduženo); više od toga server odbija. Izmenu i brisanje stavki rade samo admin i menadžer. Serviseri nigde ne vide količine ni cene u Magacinu (samo šifra, naziv, jed. mere).
+- **Arhiva:** serviser kome je nalog oduzet i dalje ga vidi samo za čitanje (`GET /api/nalozi?archive=true`), sa potpunom istorijom (`GET /api/nalozi/{id}/timeline`: statusi, izmene, beleške, fotografije, materijal, dodela, zakazivanje, otkazivanje). Migracija `V15`.
+- **Status Magacina (web):** admin i menadžer biraju dan (i servisera ili sve) i vide sva zaduženja i razduženja tog dana; može da se štampa.
+- **Pečat** (`frontend/public/elgor-stamp.png`, `app/src/main/assets/elgor-stamp.png` u Android aplikaciji) se štampa na dnu radnog naloga i reversa.
+
 ## Uloge
 
 - **Administrator**: sve, uključujući karticu *Tim* (nalozi korisnika, uloge, lozinke).

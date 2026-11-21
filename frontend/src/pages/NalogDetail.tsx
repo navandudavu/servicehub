@@ -5,6 +5,8 @@ import { NalogApiError } from '../api/nalogApi';
 import { NalogStatusTag } from '../components/NalogStatusTag';
 import { NalogPhotos } from '../components/NalogPhotos';
 import { NalogNotes } from '../components/NalogNotes';
+import { NalogMaterial } from '../components/NalogMaterial';
+import { NalogTimeline } from '../components/NalogTimeline';
 import { applianceLabel } from '../components/NalogForm';
 import Modal from '../components/Modal';
 import Spinner from '../components/Spinner';
@@ -12,7 +14,7 @@ import { useCurrentUser } from '../context/typedAuth';
 import { useLang } from '../i18n/typedLang';
 import { usePolling } from '../hooks/usePolling';
 import { formatMoney } from '../print/formatMoney';
-import { EDITABLE_STATUSES, NEXT_STATUSES, type NalogResponse, type NalogStatus, type StatusHistoryView, type TechnicianView } from '../types/nalog';
+import { EDITABLE_STATUSES, NEXT_STATUSES, type NalogEventView, type NalogResponse, type NalogStatus, type TechnicianView } from '../types/nalog';
 import { isAdminLevel } from '../context/roles';
 
 
@@ -35,7 +37,7 @@ export default function NalogDetail() {
   const isAdmin = isAdminLevel(user?.role);
 
   const [nalog, setNalog] = useState<NalogResponse | null>(null);
-  const [history, setHistory] = useState<StatusHistoryView[]>([]);
+  const [history, setHistory] = useState<NalogEventView[]>([]);
   const [technicians, setTechnicians] = useState<TechnicianView[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -48,7 +50,7 @@ export default function NalogDetail() {
 
   const load = useCallback(async (signal?: AbortSignal, clearError = true) => {
     try {
-      const [n, h] = await Promise.all([nalogApi.getNalog(nalogId, signal), nalogApi.getNalogHistory(nalogId, signal)]);
+      const [n, h] = await Promise.all([nalogApi.getNalog(nalogId, signal), nalogApi.getNalogTimeline(nalogId, signal)]);
       setNalog(n); setHistory(h);
       if (clearError) setError('');
     } catch (e) {
@@ -75,7 +77,7 @@ export default function NalogDetail() {
     if (busy) return;
     const seen = epoch.current;
     try {
-      const [n, h] = await Promise.all([nalogApi.getNalog(nalogId), nalogApi.getNalogHistory(nalogId)]);
+      const [n, h] = await Promise.all([nalogApi.getNalog(nalogId), nalogApi.getNalogTimeline(nalogId)]);
       if (seen !== epoch.current) return;
       setNalog(n); setHistory(h);
     } catch (e) {
@@ -101,7 +103,7 @@ export default function NalogDetail() {
     epoch.current++;
     try {
       setNalog(await action());
-      setHistory(await nalogApi.getNalogHistory(nalogId));
+      setHistory(await nalogApi.getNalogTimeline(nalogId));
     } catch (e) {
       const msg = e instanceof NalogApiError ? e.message : t('nalogForm_unexpected');
       await load(undefined, false);                   // show the server's current truth after a rejected move without wiping error
@@ -139,9 +141,12 @@ export default function NalogDetail() {
   const fmtDate = (iso: string) => new Date(iso).toLocaleDateString(locale, { dateStyle: 'short' });
   const fmtDateTime = (iso: string) => new Date(iso).toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' });
   const closed = nalog.status === 'COMPLETED' || nalog.status === 'CANCELLED';
-  const moves = NEXT_STATUSES[nalog.status].filter((s) => s !== 'CANCELLED');
-  const canCancel = NEXT_STATUSES[nalog.status].includes('CANCELLED');       // the technician of the nalog or an admin, with a written reason
-  const canEdit = EDITABLE_STATUSES.includes(nalog.status);
+  // A technician the nalog was taken away from can still open it (archive) but changes nothing.
+  const archived = !isAdmin && nalog.assignedToId !== (user?.id ?? null);
+  const moves = archived ? [] : NEXT_STATUSES[nalog.status].filter((s) => s !== 'CANCELLED');
+  const canCancel = !archived && NEXT_STATUSES[nalog.status].includes('CANCELLED');       // the technician of the nalog or an admin, with a written reason
+  const canEdit = !archived && EDITABLE_STATUSES.includes(nalog.status);
+  const materialOpen = !archived && (!closed || (isAdmin && nalog.status === 'COMPLETED'));
   const canDelete = isAdmin && nalog.status !== 'COMPLETED';
   const c = nalog.customer;
   const a = nalog.appliance;
@@ -171,6 +176,10 @@ export default function NalogDetail() {
         </div>
       </div>
 
+      {archived && (
+        <div role="status" style={{ background: 'var(--paper-raised)', border: '1px solid var(--border)', padding: '10px 14px', borderRadius: 4, marginBottom: 16, fontSize: 13 }}>{t('nalogDetail_archive')}</div>
+      )}
+
       {error && (
         <div role="alert" style={{ background: '#FBEAE5', color: 'var(--danger)', padding: '10px 14px', borderRadius: 4, marginBottom: 16, fontSize: 13 }}>{error}</div>
       )}
@@ -194,7 +203,9 @@ export default function NalogDetail() {
             <div style={{ whiteSpace: 'pre-wrap' }}>{nalog.diagnosis}</div>
           </Card>
 
-          <NalogNotes nalogId={nalog.id} isAdmin={isAdmin} locked={nalog.status === 'COMPLETED'} />
+          <NalogNotes nalogId={nalog.id} isAdmin={isAdmin} locked={archived || nalog.status === 'COMPLETED'} />
+
+          <NalogMaterial nalogId={nalog.id} assigneeId={nalog.assignedToId} isAdmin={isAdmin} canAdd={materialOpen} canEdit={materialOpen && isAdmin} />
 
           <Card title={t('nalogForm_priceSection')}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
@@ -208,7 +219,7 @@ export default function NalogDetail() {
             <div style={{ marginTop: 10, color: 'var(--stone)', fontSize: 13 }}>{t('nalogForm_payment')}: {t(`payment_${nalog.paymentType}`)}</div>
           </Card>
 
-          <NalogPhotos nalogId={nalog.id} canUpload={nalog.status !== 'CANCELLED'} isAdmin={isAdmin} userId={user?.id ?? null} />
+          <NalogPhotos nalogId={nalog.id} canUpload={!archived && nalog.status !== 'CANCELLED'} isAdmin={isAdmin} userId={user?.id ?? null} />
 
           {/* the box at the bottom only exists on a cancelled nalog, and shows why it was cancelled */}
           {nalog.status === 'CANCELLED' && (
@@ -251,16 +262,7 @@ export default function NalogDetail() {
             </div>
           </Card>
 
-          <Card title={t('nalogDetail_history')}>
-            {history.map((h, i) => (
-              <div key={i} style={{ fontSize: 13, padding: '5px 0', borderBottom: i < history.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                <div style={{ fontWeight: 500 }}>
-                  {h.fromStatus ? `${t(`nalogStatus_${h.fromStatus}`)} → ` : `${t('nalogDetail_created')}: `}{t(`nalogStatus_${h.toStatus}`)}
-                </div>
-                <div style={{ color: 'var(--stone)', fontSize: 12 }}>{fmtDateTime(h.changedAt)}{h.changedByName ? ` · ${t('nalogDetail_by')} ${h.changedByName}` : ''}</div>
-              </div>
-            ))}
-          </Card>
+          <NalogTimeline events={history} />
         </div>
       </div>
 

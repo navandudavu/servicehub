@@ -27,6 +27,7 @@ export default function Layout({ children }) {
   const adminNavItems = [
     { to: '/zaduzenje', label: t('nav_zaduzenje') },
     { to: '/razduzenje', label: t('nav_razduzenje') },
+    { to: '/stock-status', label: t('nav_stockStatus') },
     { to: '/parts', label: t('nav_parts') },
     { to: '/reports', label: t('nav_reports') },
     { to: '/team', label: t('nav_team') },

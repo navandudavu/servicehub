@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { nalogApi } from '../api/nalog';
 import { NalogApiError } from '../api/nalogApi';
 import Modal from '../components/Modal';
@@ -295,7 +296,7 @@ export default function StockDocs({ type }: { type: StockDocType }) {
             <tbody>
               {list.items.map((d) => (
                 <tr key={d.id} style={{ borderTop: '1px solid var(--border)' }}>
-                  <td style={{ padding: '9px 14px', fontFamily: 'var(--mono)', fontWeight: 600 }}>{d.docNo}</td>
+                  <td style={{ padding: '9px 14px', fontFamily: 'var(--mono)', fontWeight: 600 }}>{d.docNo}{d.nalogId && <> · <Link to={`/nalozi/${d.nalogId}`}>{d.nalogNumber}</Link></>}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{fmt(d.docAt)}</td>
                   <td>{d.technicianName}</td>
                   <td style={{ textAlign: 'right', fontFamily: 'var(--mono)' }}>{d.lineCount}</td>

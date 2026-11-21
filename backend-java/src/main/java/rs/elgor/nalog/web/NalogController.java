@@ -70,15 +70,22 @@ public class NalogController {
             @RequestParam(required = false) Long assignedTo,
             @RequestParam(required = false) java.time.Instant from,
             @RequestParam(required = false) java.time.Instant to,
+            @RequestParam(defaultValue = "false") boolean archive,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @AuthenticationPrincipal Jwt jwt) {
-        return nalogService.list(status, q, assignedTo, from, to, page, size, directory.resolve(jwt));
+        return nalogService.list(status, q, assignedTo, from, to, archive, page, size, directory.resolve(jwt));
     }
 
     @GetMapping("/{id}")
     public NalogResponse get(@PathVariable Long id, @AuthenticationPrincipal Jwt jwt) {
         return nalogService.get(id, directory.resolve(jwt));
+    }
+
+    /** Everything that happened to the nalog, oldest first. Readable by the technician it was taken away from, too. */
+    @GetMapping("/{id}/timeline")
+    public List<rs.elgor.nalog.dto.NalogEventView> timeline(@PathVariable Long id, @AuthenticationPrincipal Jwt jwt) {
+        return nalogService.timeline(id, directory.resolve(jwt));
     }
 
     @GetMapping("/{id}/history")

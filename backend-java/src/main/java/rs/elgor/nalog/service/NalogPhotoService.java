@@ -40,15 +40,18 @@ public class NalogPhotoService {
 
     private final NalogService nalogService;
     private final NalogPhotoRepository photos;
+    private final NalogEventService events;
     private final Path dir;
     private final long maxBytes;
 
     public NalogPhotoService(NalogService nalogService,
                              NalogPhotoRepository photos,
+                             NalogEventService events,
                              @Value("${nalog.photos.dir}") String dir,
                              @Value("${nalog.photos.max-bytes:10485760}") long maxBytes) throws IOException {
         this.nalogService = nalogService;
         this.photos = photos;
+        this.events = events;
         this.dir = Path.of(dir).toAbsolutePath().normalize();
         this.maxBytes = maxBytes;
         Files.createDirectories(this.dir);
@@ -116,18 +119,20 @@ public class NalogPhotoService {
         p.setSizeBytes(bytes.length);
         p.setUploadedById(actor.id());
         p.setUploadedByName(actor.name());
-        return PhotoView.from(photos.save(p));
+        PhotoView saved = PhotoView.from(photos.save(p));
+        events.record(nalogId, actor, "PHOTO", "Dodata fotografija (" + cat + ")");
+        return saved;
     }
 
     @Transactional(readOnly = true)
     public List<PhotoView> list(Long nalogId, AuthUser actor) {
-        nalogService.loadAccessible(nalogId, actor);
+        nalogService.loadReadable(nalogId, actor);
         return photos.findByNalogIdOrderByIdAsc(nalogId).stream().map(PhotoView::from).toList();
     }
 
     @Transactional(readOnly = true)
     public FileData read(Long nalogId, Long photoId, AuthUser actor) {
-        nalogService.loadAccessible(nalogId, actor);
+        nalogService.loadReadable(nalogId, actor);
         NalogPhoto p = photos.findByIdAndNalogId(photoId, nalogId)
                 .orElseThrow(() -> NalogException.notFound("Photo " + photoId + " not found"));
         try {
@@ -148,6 +153,7 @@ public class NalogPhotoService {
             throw NalogException.forbidden("You can only delete your own photos");
         }
         photos.delete(p);
+        events.record(nalogId, actor, "PHOTO", "Obrisana fotografija (" + p.getCategory() + ")");
         Path target = dir.resolve(p.getFilename()).normalize();
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override

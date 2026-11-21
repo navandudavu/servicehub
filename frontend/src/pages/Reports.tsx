@@ -186,10 +186,12 @@ export default function Reports() {
   );
 }
 
+const ALL_STATUSES = ['DRAFT', 'DISPATCHED', 'IN_PROGRESS', 'AWAITING_PARTS', 'RECEIVED', 'TESTING', 'DRIVING', 'NEEDS_ELECTRICIAN', 'COMPLETED', 'CANCELLED'];
+
 function CountsTable({ report }: { report: CountsReport }) {
   const { t } = useLang();
   // columns: only statuses that occur anywhere, in a fixed order
-  const statuses = Object.keys(report.totals.byStatus);
+  const statuses = ALL_STATUSES;
   return (
     <div className="card" style={{ padding: 0, overflowX: 'auto', marginBottom: 16 }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>

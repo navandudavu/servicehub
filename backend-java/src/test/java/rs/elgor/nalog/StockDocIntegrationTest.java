@@ -92,6 +92,17 @@ class StockDocIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void razduzenjeCannotExceedZaduzenjeAndZaduzenjeCannotBeCutBelowWhatWasUsed() {
+        long a = insertPart("A");
+        DocView zad = make(StockDoc.Type.ZAD, 2, a, "2", admin);
+        assertEquals(400, assertThrows(NalogException.class, () -> make(StockDoc.Type.RAZ, 2, a, "3", admin)).getStatus().value());
+        make(StockDoc.Type.RAZ, 2, a, "2", admin);
+        assertEquals(400, assertThrows(NalogException.class,
+                () -> service.update(zad.id(), new UpdateRequest(2L, zad.docAt(), List.of(new LineRequest(a, BigDecimal.ONE))), admin)).getStatus().value());
+        assertEquals(2, count("stock_doc"));
+    }
+
+    @Test
     void onlyTechniciansCanBeIssuedTo() {
         long a = insertPart("A");
         assertEquals(400, assertThrows(NalogException.class, () -> make(StockDoc.Type.ZAD, 4, a, "1", admin)).getStatus().value());

@@ -1,6 +1,6 @@
 import axios, { AxiosError, AxiosInstance, Method } from 'axios';
 import type {
-  ApiProblem, CountsReport, CreateNalogRequest, CreateStockDocRequest, ImportResult, StockDocQuery, StockDocSummary, StockDocType, StockDocView, StockRevisionView, UpdateStockDocRequest, BalanceRow, CustomerDetail, CustomerInput, CustomerView, CreatePartRequest, NalogListQuery, NalogPreview, NalogResponse,
+  ApiProblem, CountsReport, CreateNalogRequest, HeldPart, MaterialLine, NalogEventView, StockLineRequest, CreateStockDocRequest, ImportResult, StockDocQuery, StockDocSummary, StockDocType, StockDocView, StockRevisionView, UpdateStockDocRequest, BalanceRow, CustomerDetail, CustomerInput, CustomerView, CreatePartRequest, NalogListQuery, NalogPreview, NalogResponse,
   NalogStatus, NalogSummary, PageResponse, PartResponse, PreviewRequest, StatusHistoryView,
   NoteView, CreateNoteRequest, UpdateNalogRequest, TechnicianView, UpdatePartRequest, PhotoView, PhotoCategory, NalogStats, CalendarEntry, ReportSummary, BulkResult, BulkCustomerDelete,
 } from '../types/nalog';
@@ -109,6 +109,23 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized, r
 
   const getNalogHistory = (id: number, signal?: AbortSignal) =>
     send<StatusHistoryView[]>('GET', `/api/nalozi/${id}/history`, { safeToRetry: true, signal });
+
+  // Everything that ever happened to the nalog (readable by the technician it was taken away from, too)
+  const getNalogTimeline = (id: number, signal?: AbortSignal) =>
+    send<NalogEventView[]>('GET', `/api/nalozi/${id}/timeline`, { safeToRetry: true, signal });
+
+  // Materijal = automatic Razduzenje. Never retried: a repeat could be applied twice.
+  const listMaterial = (id: number, signal?: AbortSignal) =>
+    send<MaterialLine[]>('GET', `/api/nalozi/${id}/material`, { safeToRetry: true, signal });
+  const addMaterial = (id: number, lines: StockLineRequest[]) =>
+    send<MaterialLine[]>('POST', `/api/nalozi/${id}/material`, { data: { lines }, safeToRetry: false });
+  const changeMaterial = (id: number, lineId: number, quantity: string) =>
+    send<MaterialLine[]>('PUT', `/api/nalozi/${id}/material/${lineId}`, { data: { quantity }, safeToRetry: false });
+  const removeMaterial = (id: number, lineId: number) =>
+    send<MaterialLine[]>('DELETE', `/api/nalozi/${id}/material/${lineId}`, { safeToRetry: false });
+  // The parts a technician holds (name, sku, unit). A technician gets his own; admin-level passes technicianId.
+  const listHeldParts = (query: { technicianId?: number; q?: string } = {}, signal?: AbortSignal) =>
+    send<HeldPart[]>('GET', '/api/stock-docs/held', { params: query, safeToRetry: true, signal });
 
   // reason is required by the server when cancelling (a repeat is a no-op, so retrying is safe)
   const changeStatus = (id: number, status: NalogStatus, reason?: string, signal?: AbortSignal) =>
@@ -244,7 +261,7 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized, r
     send<BalanceRow[]>('GET', '/api/stock-docs/balance', { params: query, safeToRetry: true, signal });
 
   return {
-    newIdempotencyKey, submitNalog, updateNalog, deleteNalog, previewNalog, listNalozi, getNalog, getNalogHistory, changeStatus,
+    newIdempotencyKey, submitNalog, updateNalog, deleteNalog, previewNalog, listNalozi, getNalog, getNalogHistory, getNalogTimeline, listMaterial, addMaterial, changeMaterial, removeMaterial, listHeldParts, changeStatus,
     searchCustomers, listCustomers, getCustomer, createCustomer, updateCustomer, deleteCustomer, bulkDeleteNalozi, bulkAssignNalozi, bulkSetPartsActive, bulkDeleteCustomers, assignNalog, listTechnicians, getStats, getCalendar, setSchedule, getReportSummary, getCountsReport, fetchReportCsv, listPhotos, uploadPhoto, deletePhoto, fetchPhotoBlob, listNotes, addNote, deleteNote, searchParts, createPart, updatePart, importParts, listApplianceTypes, addApplianceType, listStockDocs, fullStockDocs, getStockDoc, createStockDoc, updateStockDoc, listStockRevisions, getStockBalance,
   };
 }
