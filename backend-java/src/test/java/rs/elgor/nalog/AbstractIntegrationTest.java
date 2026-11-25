@@ -38,11 +38,12 @@ public abstract class AbstractIntegrationTest {
         }
     }
 
-    /** Gives a nalog what the closing rule asks for (a konstatacija / izvrseni radovi note + a Pre and a Posle photo row). */
+    /** Gives a nalog what the closing rule asks for (a konstatacija / izvrseni radovi note, a Pre and a Posle photo row, and a typed price). */
     protected void readyToClose(long nalogId) {
         addNote(nalogId, "Zamenjen deo");
         addPhoto(nalogId, "before");
         addPhoto(nalogId, "after");
+        jdbc.update("UPDATE nalog SET price_entered = TRUE WHERE id = ?", nalogId);
     }
 
     protected void addNote(long nalogId, String body) {

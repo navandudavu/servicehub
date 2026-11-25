@@ -73,13 +73,13 @@ class ManagerRoleIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void managerHasNoAccessToReportsButAdminDoes() throws Exception {
-        mvc.perform(get("/api/nalozi/reports/summary").with(as(4, "Menadžer", "manager"))
+        mvc.perform(get("/api/nalozi/reports/counts").with(as(4, "Menadžer", "manager"))
                 .param("from", "2026-01-01T00:00:00Z").param("to", "2026-02-01T00:00:00Z"))
                 .andExpect(status().isForbidden());
-        mvc.perform(get("/api/nalozi/reports/summary").with(as(1, "Admin", "admin"))
+        mvc.perform(get("/api/nalozi/reports/counts").with(as(1, "Admin", "admin"))
                 .param("from", "2026-01-01T00:00:00Z").param("to", "2026-02-01T00:00:00Z"))
                 .andExpect(status().isOk());
-        mvc.perform(get("/api/nalozi/reports/summary").with(as(2, "Tehničar Dva", "technician"))
+        mvc.perform(get("/api/nalozi/reports/counts").with(as(2, "Tehničar Dva", "technician"))
                 .param("from", "2026-01-01T00:00:00Z").param("to", "2026-02-01T00:00:00Z"))
                 .andExpect(status().isForbidden());
     }

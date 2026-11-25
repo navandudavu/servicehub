@@ -76,6 +76,10 @@ public class Nalog {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal total;
 
+    /** True once somebody typed a price (0 counts). Completing a nalog requires it. */
+    @Column(name = "price_entered", nullable = false)
+    private boolean priceEntered;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_type", nullable = false, length = 20)
     private PaymentType paymentType;

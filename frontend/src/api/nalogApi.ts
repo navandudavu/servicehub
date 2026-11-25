@@ -2,7 +2,7 @@ import axios, { AxiosError, AxiosInstance, Method } from 'axios';
 import type {
   ApiProblem, CountsReport, CreateNalogRequest, HeldPart, MaterialLine, NalogEventView, StockLineRequest, CreateStockDocRequest, ImportResult, StockDocQuery, StockDocSummary, StockDocType, StockDocView, StockRevisionView, UpdateStockDocRequest, BalanceRow, CustomerDetail, CustomerInput, CustomerView, CreatePartRequest, NalogListQuery, NalogPreview, NalogResponse,
   NalogStatus, NalogSummary, PageResponse, PartResponse, PreviewRequest, StatusHistoryView,
-  NoteView, CreateNoteRequest, UpdateNalogRequest, TechnicianView, UpdatePartRequest, PhotoView, PhotoCategory, NalogStats, CalendarEntry, ReportSummary, BulkResult, BulkCustomerDelete,
+  NoteView, CreateNoteRequest, UpdateNalogRequest, TechnicianView, UpdatePartRequest, PhotoView, PhotoCategory, NalogStats, CalendarEntry, BulkResult, BulkCustomerDelete,
 } from '../types/nalog';
 
 /** Normalised error: the UI never has to look inside an AxiosError. */
@@ -186,8 +186,6 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized, r
   const getCountsReport = (fromIso: string, toIso: string, signal?: AbortSignal) =>
     send<CountsReport>('GET', '/api/nalozi/reports/counts', { params: { from: fromIso, to: toIso }, safeToRetry: true, signal });
 
-  const getReportSummary = (fromIso: string, toIso: string, signal?: AbortSignal) =>
-    send<ReportSummary>('GET', '/api/nalozi/reports/summary', { params: { from: fromIso, to: toIso }, safeToRetry: true, signal });
 
   const fetchReportCsv = (fromIso: string, toIso: string, status?: string) =>
     send<Blob>('GET', '/api/nalozi/reports/export.csv', {
@@ -262,7 +260,7 @@ export function createNalogClient({ baseURL, getAuthorization, onUnauthorized, r
 
   return {
     newIdempotencyKey, submitNalog, updateNalog, deleteNalog, previewNalog, listNalozi, getNalog, getNalogHistory, getNalogTimeline, listMaterial, addMaterial, changeMaterial, removeMaterial, listHeldParts, changeStatus,
-    searchCustomers, listCustomers, getCustomer, createCustomer, updateCustomer, deleteCustomer, bulkDeleteNalozi, bulkAssignNalozi, bulkSetPartsActive, bulkDeleteCustomers, assignNalog, listTechnicians, getStats, getCalendar, setSchedule, getReportSummary, getCountsReport, fetchReportCsv, listPhotos, uploadPhoto, deletePhoto, fetchPhotoBlob, listNotes, addNote, deleteNote, searchParts, createPart, updatePart, importParts, listApplianceTypes, addApplianceType, listStockDocs, fullStockDocs, getStockDoc, createStockDoc, updateStockDoc, listStockRevisions, getStockBalance,
+    searchCustomers, listCustomers, getCustomer, createCustomer, updateCustomer, deleteCustomer, bulkDeleteNalozi, bulkAssignNalozi, bulkSetPartsActive, bulkDeleteCustomers, assignNalog, listTechnicians, getStats, getCalendar, setSchedule, getCountsReport, fetchReportCsv, listPhotos, uploadPhoto, deletePhoto, fetchPhotoBlob, listNotes, addNote, deleteNote, searchParts, createPart, updatePart, importParts, listApplianceTypes, addApplianceType, listStockDocs, fullStockDocs, getStockDoc, createStockDoc, updateStockDoc, listStockRevisions, getStockBalance,
   };
 }
 

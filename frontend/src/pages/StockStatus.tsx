@@ -13,7 +13,8 @@ const dayAfter = (d: string) => { const x = new Date(`${d}T00:00:00`); x.setDate
 export default function StockStatus() {
   const { t, lang } = useLang();
   const navigate = useNavigate();
-  const [day, setDay] = useState(todayStr());
+  const [fromDay, setFromDay] = useState(todayStr());
+  const [toDay, setToDay] = useState(todayStr());
   const [techId, setTechId] = useState('');
   const [technicians, setTechnicians] = useState<TechnicianView[]>([]);
   const [docs, setDocs] = useState<StockDocView[] | null>(null);
@@ -26,17 +27,17 @@ export default function StockStatus() {
   }, []);
 
   useEffect(() => {
-    if (!day) return;
+    if (!fromDay || !toDay || fromDay > toDay) return;
     const ctrl = new AbortController();
     setDocs(null); setFailed(false);
-    nalogApi.fullStockDocs({ ...(techId ? { technicianId: Number(techId) } : {}), from: dayStart(day), to: dayAfter(day) }, ctrl.signal)
+    nalogApi.fullStockDocs({ ...(techId ? { technicianId: Number(techId) } : {}), from: dayStart(fromDay), to: dayAfter(toDay) }, ctrl.signal)
       .then(setDocs).catch(() => { if (!ctrl.signal.aborted) setFailed(true); });
     return () => ctrl.abort();
-  }, [day, techId]);
+  }, [fromDay, toDay, techId]);
 
-  const fmt = (iso: string) => new Date(iso).toLocaleTimeString(lang === 'sr' ? 'sr-Latn-RS' : 'en-GB', { timeZone: 'Europe/Belgrade', hour: '2-digit', minute: '2-digit' });
+  const fmt = (iso: string) => new Date(iso).toLocaleString(lang === 'sr' ? 'sr-Latn-RS' : 'en-GB', { timeZone: 'Europe/Belgrade', dateStyle: 'short', timeStyle: 'short' });
   const print = () => {
-    const p = new URLSearchParams({ from: dayStart(day), to: dayAfter(day), back: '/stock-status' });
+    const p = new URLSearchParams({ from: dayStart(fromDay), to: dayAfter(toDay), back: '/stock-status' });
     if (techId) p.set('technicianId', techId);
     navigate(`/stock-docs/print?${p.toString()}`);
   };
@@ -48,7 +49,10 @@ export default function StockStatus() {
 
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 20 }}>
         <label style={{ fontSize: 12.5 }}>{t('stockStatus_day')}<br />
-          <input className="input" type="date" value={day} onChange={(e) => setDay(e.target.value)} />
+          <input className="input" type="date" value={fromDay} max={toDay} onChange={(e) => setFromDay(e.target.value)} />
+        </label>
+        <label style={{ fontSize: 12.5 }}>{t('stockStatus_toDay')}<br />
+          <input className="input" type="date" value={toDay} min={fromDay} onChange={(e) => setToDay(e.target.value)} />
         </label>
         <label style={{ fontSize: 12.5 }}>{t('stockStatus_technician')}<br />
           <select className="input" value={techId} onChange={(e) => setTechId(e.target.value)}>

@@ -6,7 +6,6 @@ import jakarta.persistence.Query;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import rs.elgor.nalog.dto.CountsReport;
-import rs.elgor.nalog.dto.ReportSummary;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -21,7 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** Owner-only reports (money, counts per worker) and CSV export. Read-only; nothing here recalculates a price. */
+/** Owner-only reports (counts per worker and status) and CSV export. No money figures: revenue and payment-type reports were dropped. */
 @Service
 public class NalogReportService {
 
@@ -31,24 +30,8 @@ public class NalogReportService {
     private static final Set<String> STATUSES =
             Set.of("DRAFT", "DISPATCHED", "IN_PROGRESS", "AWAITING_PARTS", "RECEIVED", "TESTING", "DRIVING", "NEEDS_ELECTRICIAN", "COMPLETED", "CANCELLED");
 
-    private static final String SUMS =
-            "count(*), coalesce(sum(n.labor_hours),0), coalesce(sum(n.labor_total),0), coalesce(sum(n.parts_total),0), "
-          + "coalesce(sum(n.subtotal),0), coalesce(sum(n.vat_amount),0), coalesce(sum(n.total),0)";
-    private static final String DONE_IN_RANGE =
-            " FROM nalog n WHERE n.status = 'COMPLETED' AND n.completed_at >= :from AND n.completed_at < :to";
-
     @PersistenceContext
     private EntityManager em;
-
-    @Transactional(readOnly = true)
-    public ReportSummary summary(Instant from, Instant to) {
-        checkRange(from, to);
-        ReportSummary.Totals totals = totals((Object[]) range(em.createNativeQuery("SELECT " + SUMS + DONE_IN_RANGE), from, to).getSingleResult(), 0);
-        return new ReportSummary(from, to, totals,
-                grouped("coalesce(n.assigned_to_name, '-')", from, to, "total DESC, key"),
-                grouped("to_char(n.completed_at AT TIME ZONE 'Europe/Belgrade', 'YYYY-MM')", from, to, "key"),
-                grouped("n.payment_type", from, to, "key"));
-    }
 
     /** Nalozi created in [from, to) counted per worker and status. */
     @Transactional(readOnly = true)
@@ -83,7 +66,7 @@ public class NalogReportService {
         Query q = em.createNativeQuery(
                 "SELECT n.nalog_number, n.status, n.created_at, n.completed_at, c.full_name, c.phone, c.address, c.city, "
               + "n.appliance_type, n.appliance_brand, n.appliance_model, n.assigned_to_name, "
-              + "n.labor_hours, n.labor_total, n.parts_total, n.subtotal, n.vat_amount, n.total, n.payment_type "
+              + "n.labor_hours "
               + "FROM nalog n JOIN customer c ON c.id = n.customer_id "
               + "WHERE n.created_at >= :from AND n.created_at < :to" + (byStatus ? " AND n.status = :status" : "")
               + " ORDER BY n.created_at, n.id LIMIT " + (MAX_CSV_ROWS + 1));
@@ -97,38 +80,22 @@ public class NalogReportService {
 
         StringBuilder sb = new StringBuilder("﻿");        // BOM so Excel reads UTF-8 (č, ć, š, ž)
         sb.append(String.join(";", "Broj naloga", "Status", "Kreiran", "Završen", "Klijent", "Telefon", "Adresa", "Grad",
-                "Uređaj", "Marka", "Model", "Serviser", "Sati rada", "Rad", "Delovi", "Osnovica", "PDV", "Ukupno", "Plaćanje"))
+                "Uređaj", "Marka", "Model", "Serviser", "Sati rada"))
           .append("\r\n");
         for (Object[] r : rows) {
-            List<String> cells = new ArrayList<>(19);
+            List<String> cells = new ArrayList<>(13);
             cells.add((String) r[0]);
             cells.add((String) r[1]);
             cells.add(when(r[2]));
             cells.add(when(r[3]));
             for (int i = 4; i <= 11; i++) cells.add((String) r[i]);
-            for (int i = 12; i <= 17; i++) cells.add(money(r[i]));
-            cells.add((String) r[18]);
+            cells.add(money(r[12]));
             sb.append(cells.stream().map(NalogReportService::cell).reduce((a, b) -> a + ";" + b).orElse("")).append("\r\n");
         }
         return sb.toString();
     }
 
     // ---- helpers -----------------------------------------------------------
-
-    private List<ReportSummary.Row> grouped(String keyExpr, Instant from, Instant to, String order) {
-        Query q = em.createNativeQuery("SELECT " + keyExpr + " AS key, " + SUMS + DONE_IN_RANGE + " GROUP BY 1 ORDER BY " + order.replace("total DESC", "sum(n.total) DESC"));
-        range(q, from, to);
-        @SuppressWarnings("unchecked")
-        List<Object[]> rows = q.getResultList();
-        List<ReportSummary.Row> out = new ArrayList<>();
-        for (Object[] r : rows) out.add(new ReportSummary.Row((String) r[0], totals(r, 1)));
-        return out;
-    }
-
-    private static ReportSummary.Totals totals(Object[] r, int o) {
-        return new ReportSummary.Totals(((Number) r[o]).longValue(), dec(r[o + 1]), dec(r[o + 2]), dec(r[o + 3]),
-                dec(r[o + 4]), dec(r[o + 5]), dec(r[o + 6]));
-    }
 
     private static Query range(Query q, Instant from, Instant to) {
         return q.setParameter("from", Timestamp.from(from)).setParameter("to", Timestamp.from(to));
@@ -141,10 +108,6 @@ public class NalogReportService {
         if (Duration.between(from, to).toDays() > 800) {
             throw NalogException.invalid("The period may be at most about two years");
         }
-    }
-
-    private static BigDecimal dec(Object o) {
-        return ((BigDecimal) o).setScale(2, RoundingMode.HALF_UP);
     }
 
     private static String money(Object o) {

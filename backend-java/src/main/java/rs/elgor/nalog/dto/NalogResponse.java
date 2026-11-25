@@ -38,7 +38,9 @@ public record NalogResponse(
         Instant createdAt,
         Instant updatedAt,
         // Send this back as expectedVersion when editing: it detects that someone else changed the nalog meanwhile.
-        Long version
+        Long version,
+        // False until a price was typed (0 counts): the nalog cannot be completed before that.
+        boolean priceEntered
 ) {
 
     public record CustomerView(Long id, String fullName, String address, String city,
@@ -71,6 +73,6 @@ public record NalogResponse(
                         .toList(),
                 n.getPartsTotal(), n.getSubtotal(), n.getVatRate(), n.getVatAmount(), n.getTotal(),
                 n.getPaymentType(), n.getCreatedByName(), n.getAssignedToId(), n.getAssignedToName(), n.getScheduledAt(), n.getCompletedAt(),
-                n.getCreatedAt(), n.getUpdatedAt(), n.getVersion());
+                n.getCreatedAt(), n.getUpdatedAt(), n.getVersion(), n.isPriceEntered());
     }
 }

@@ -112,4 +112,14 @@ class MaterialArchiveIntegrationTest extends AbstractIntegrationTest {
         // and a technician who never had it sees nothing at all
         assertEquals(404, assertThrows(NalogException.class, () -> nalozi.timeline(n.id(), new AuthUser(9, "Drugi", "technician"))).getStatus().value());
     }
+
+    @Test
+    void managerHasNoAccessToMaterial() {
+        insertUser(4, "Menadžer", "manager");
+        AuthUser manager = new AuthUser(4, "Menadžer", "manager");
+        NalogResponse n = nalogFor(2);
+        assertEquals(403, assertThrows(NalogException.class, () -> material.list(n.id(), manager)).getStatus().value());
+        assertEquals(403, assertThrows(NalogException.class,
+                () -> material.add(n.id(), new MaterialRequest(List.of(new LineRequest(insertPart("M"), BigDecimal.ONE))), manager)).getStatus().value());
+    }
 }

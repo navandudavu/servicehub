@@ -121,6 +121,19 @@ class NalogServiceIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void cannotCompleteUntilAPriceWasTyped() {
+        NalogResponse n = service.create(req(NalogStatus.DISPATCHED, 2L), null, admin);
+        addNote(n.id(), "Zamenjen deo");
+        addPhoto(n.id(), "before");
+        addPhoto(n.id(), "after");
+        jdbc.update("UPDATE nalog SET price_entered = FALSE WHERE id = ?", n.id());
+        assertEquals(400, assertThrows(NalogException.class,
+                () -> service.changeStatus(n.id(), NalogStatus.COMPLETED, null, tech2)).getStatus().value());
+        jdbc.update("UPDATE nalog SET price_entered = TRUE WHERE id = ?", n.id());   // a typed price of 0 counts
+        assertEquals(NalogStatus.COMPLETED, service.changeStatus(n.id(), NalogStatus.COMPLETED, null, tech2).status());
+    }
+
+    @Test
     void technicianMovesFreelyBetweenWorkingStatusesAndCanCloseFromAny() {
         NalogResponse n = service.create(req(NalogStatus.DISPATCHED, 2L), null, admin);
         for (NalogStatus s : List.of(NalogStatus.RECEIVED, NalogStatus.TESTING, NalogStatus.DRIVING,

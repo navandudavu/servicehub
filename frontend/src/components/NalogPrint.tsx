@@ -84,10 +84,13 @@ function NalogSheet({ nalog, notes, material, company, revers = false, copy, pag
       {copy && <div className="copy">{copy}</div>}
 
       <div className="bar">
-        <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <img src="/elgor-logo.png" alt="" style={{ width: '17mm', height: '17mm' }} />
+          <div>
           <h1>{company.name}</h1>
           <div className="muted">{company.address} · {company.phone} · {company.email}</div>
           <div className="muted">PIB {company.pib} · MB {company.mb} · Tekući račun {company.bankAccount}</div>
+          </div>
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: 16, fontWeight: 'bold' }}>{revers ? 'REVERS' : 'RADNI NALOG'}</div>

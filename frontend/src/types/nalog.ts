@@ -134,6 +134,8 @@ export interface NalogResponse {
   updatedAt: string;
   /** Send back as expectedVersion when editing; the server refuses the save if someone changed the nalog meanwhile. */
   version: number;
+  /** False until a price was typed (0 counts); the nalog cannot be completed before that. */
+  priceEntered: boolean;
 }
 
 // --- error contract (RFC 7807 ProblemDetail from GlobalExceptionHandler) ---
@@ -429,26 +431,6 @@ export interface CalendarEntry {
   customerName: string;
   applianceType: string | null;
   assignedToName: string | null;
-}
-
-/** Mirrors ReportSummary.java (GET /api/nalozi/reports/summary, admin only). All decimals are strings. */
-export interface ReportTotals {
-  count: number;
-  laborHours: DecimalString;
-  laborTotal: DecimalString;
-  partsTotal: DecimalString;
-  subtotal: DecimalString;
-  vatAmount: DecimalString;
-  total: DecimalString;
-}
-export interface ReportRow { key: string; totals: ReportTotals }
-export interface ReportSummary {
-  from: string;
-  to: string;
-  totals: ReportTotals;
-  byTechnician: ReportRow[];
-  byMonth: ReportRow[];
-  byPayment: ReportRow[];
 }
 
 /** Mirrors BulkDtos.java. */

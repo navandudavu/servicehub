@@ -46,12 +46,14 @@ public class NalogMaterialService {
     /** Readable by everybody who may read the nalog (the archive included). */
     @Transactional(readOnly = true)
     public List<MaterialLine> list(Long nalogId, AuthUser actor) {
+        requireMaterialAccess(actor);
         nalogService.loadReadable(nalogId, actor);
         return lines(nalogId);
     }
 
     @Transactional(rollbackFor = Exception.class)
     public List<MaterialLine> add(Long nalogId, MaterialRequest req, AuthUser actor) {
+        requireMaterialAccess(actor);
         Nalog nalog = nalogService.loadAccessible(nalogId, actor);
         requireOpen(nalog, actor);
         Long techId = nalog.getAssignedToId();
@@ -161,14 +163,21 @@ public class NalogMaterialService {
     private static void requireOpen(Nalog nalog, AuthUser actor) {
         NalogStatus s = nalog.getStatus();
         boolean closed = s == NalogStatus.COMPLETED || s == NalogStatus.CANCELLED;
-        if (closed && !(s == NalogStatus.COMPLETED && actor != null && actor.isAdmin())) {
+        if (closed && !(s == NalogStatus.COMPLETED && actor != null && actor.isOwner())) {
             throw NalogException.conflict("Materijal se ne može menjati na " + (s == NalogStatus.COMPLETED ? "završenom" : "otkazanom") + " nalogu");
         }
     }
 
     private static void requireAdmin(AuthUser actor) {
-        if (actor == null || !actor.isAdmin()) {
-            throw NalogException.forbidden("Samo administrator ili menadžer menja materijal");
+        if (actor == null || !actor.isOwner()) {
+            throw NalogException.forbidden("Samo administrator menja materijal");
+        }
+    }
+
+    /** Materijal belongs to the admin and the technician of the nalog; a manager has no access to it. */
+    private static void requireMaterialAccess(AuthUser actor) {
+        if (actor == null || (actor.isAdmin() && !actor.isOwner())) {
+            throw NalogException.forbidden("Menadžer nema pristup materijalu");
         }
     }
 

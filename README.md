@@ -76,7 +76,7 @@ Nalog se ne može zatvoriti (*Završen*) bez bar jedne fotografije kategorije *P
 
 ### Pregled, kalendar, izveštaji
 
-Kontrolna tabla i Kalendar čitaju naloge; administrator zakazuje planirani dolazak na stranici naloga ili u formularu — **samo datum, bez sata** (čuva se kao podne tog dana po lokalnom vremenu da dan ne bi „skliznuo“ pri pretvaranju vremenskih zona); kalendar prikazuje najviše 62 dana odjednom. **Izveštaji** (samo administrator): promet završenih naloga po serviseru / mesecu / načinu plaćanja i CSV izvoz (tačka-zarez, decimalni zarez, otvara se u srpskom Excelu).
+Kontrolna tabla i Kalendar čitaju naloge; administrator zakazuje planirani dolazak na stranici naloga ili u formularu — **samo datum, bez sata** (čuva se kao podne tog dana po lokalnom vremenu da dan ne bi „skliznuo“ pri pretvaranju vremenskih zona); kalendar prikazuje najviše 62 dana odjednom. **Izveštaji** (samo administrator): broj naloga po serviseru i statusu (sa filterom po serviseru i štampom samo te tabele) i CSV izvoz, **bez novčanih iznosa i načina plaćanja** (tačka-zarez, decimalni zarez, otvara se u srpskom Excelu).
 
 ### Zaduživanje
 
@@ -84,7 +84,7 @@ Dve kartice, **Zaduživanje** i **Razduživanje**, isti izgled kao u starom prog
 
 ## Materijal, arhiva i Status Magacina
 
-- **Materijal u nalogu (bez cene):** upotreba materijala automatski pravi razduženje (RAZ) servisera kome je nalog dodeljen. Serviser može samo da dodaje, i to samo delove koje trenutno drži (zaduženo − razduženo); više od toga server odbija. Izmenu i brisanje stavki rade samo admin i menadžer. Serviseri nigde ne vide količine ni cene u Magacinu (samo šifra, naziv, jed. mere).
+- **Materijal u nalogu (bez cene):** upotreba materijala automatski pravi razduženje (RAZ) servisera kome je nalog dodeljen. Serviser može samo da dodaje, i to samo delove koje trenutno drži (zaduženo − razduženo); više od toga server odbija. Izmenu i brisanje stavki radi samo **administrator**; **menadžer nema pristup materijalu** u nalogu. Magacin u Android aplikaciji prikazuje serviseru samo njegove delove (šifra, naziv, jed. mere) i količinu koju drži; cene se nigde ne prikazuju. Razduženje ne može preći zaduženje (ni ručno u kartici *Razduživanje*).
 - **Arhiva:** serviser kome je nalog oduzet i dalje ga vidi samo za čitanje (`GET /api/nalozi?archive=true`), sa potpunom istorijom (`GET /api/nalozi/{id}/timeline`: statusi, izmene, beleške, fotografije, materijal, dodela, zakazivanje, otkazivanje). Migracija `V15`.
 - **Status Magacina (web):** admin i menadžer biraju dan (i servisera ili sve) i vide sva zaduženja i razduženja tog dana; može da se štampa.
 - **Pečat** (`frontend/public/elgor-stamp.png`, `app/src/main/assets/elgor-stamp.png` u Android aplikaciji) se štampa na dnu radnog naloga i reversa.
@@ -93,7 +93,7 @@ Dve kartice, **Zaduživanje** i **Razduživanje**, isti izgled kao u starom prog
 
 - **Administrator**: sve, uključujući karticu *Tim* (nalozi korisnika, uloge, lozinke).
 - **Menadžer**: sve što i administrator (nalozi, delovi, klijenti, izveštaji, brisanja), osim *Tima*. Server odbija sve izmene `/api/users` za menadžera, a kartica se ne prikazuje.
-- **Serviser**: samo svoji (dodeljeni) nalozi; ne pravi naloge, nema *Izveštaje* ni magacin; u Android kartici *Magacin* samo čita svoja zaduženja/razduženja. Nalog može **otkazati** uz obavezan razlog (otkazan je konačan, ne otvara se ponovo). **Menadžer** nema pristup izveštajima.
+- **Serviser**: samo svoji (dodeljeni) nalozi; ne pravi naloge, nema *Izveštaje* ni magacin; u Android kartici *Magacin* vidi samo svoje delove i količine. Nalog može **otkazati** uz obavezan razlog (otkazan je konačan, ne otvara se ponovo). **Menadžer** nema pristup izveštajima ni materijalu u nalogu. **Cena** se ne unosi pri pravljenju naloga na vebu: unosi je serviser (ili admin pri izmeni), obavezna je za završetak naloga (može biti 0); migracija `V16`.
 
 ## API
 
@@ -136,7 +136,7 @@ Dve kartice, **Zaduživanje** i **Razduživanje**, isti izgled kao u starom prog
 | GET/POST/DELETE | `/api/nalozi/{id}/photos[/{photoId}/file]` | po pravilu pristupa |
 | GET/POST/DELETE | `/api/nalozi/{id}/notes[/{noteId}]` | čitanje/dodavanje po pravilu pristupa, brisanje admin; na završenom nalogu samo čitanje (409) |
 | GET | `/api/nalozi/customers`, `/technicians`, `/stats`, `/calendar` | po pravilu pristupa / admin |
-| GET | `/api/nalozi/reports/summary`, `/reports/export.csv` | admin |
+| GET | `/api/nalozi/reports/counts`, `/reports/export.csv` | admin |
 | GET | `/api/parts` | prijavljeni (magacin = šifra, naziv, jedinica mere; bez cene i stanja) |
 | POST/PUT | `/api/parts`, `/api/parts/{id}` | administrator / menadžer (uvoz iz CSV datoteke na stranici Magacin) |
 | GET | `/api/stock-docs`, `/full`, `/{id}` | admin-nivo: svi; serviser: samo svoji |

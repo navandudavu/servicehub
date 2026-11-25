@@ -109,6 +109,7 @@ public class NalogService {
         PricingCalculator.Totals t = pricing.flat(req.price());
 
         // 6. Assemble.
+        nalog.setPriceEntered(req.price() != null);
         nalog.setNalogNumber(nextNalogNumber());
         nalog.setIdempotencyKey(idempotencyKey);
         nalog.setCustomer(customer);
@@ -210,6 +211,9 @@ public class NalogService {
             if (noteRepository.countByNalogId(nalog.getId()) == 0) {
                 throw NalogException.invalid("Uslovi nisu ispunjeni: Nalog se ne može zatvoriti bez konstatacije / izvršenih radova");
             }
+            if (!nalog.isPriceEntered()) {
+                throw NalogException.invalid("Uslovi nisu ispunjeni: Nalog se ne može zatvoriti bez unete cene (može biti 0)");
+            }
             nalog.setCompletedAt(Instant.now());
         }
         nalog.setStatus(target);
@@ -241,7 +245,8 @@ public class NalogService {
         Nalog n = nalogRepository.findById(id)
                 .orElseThrow(() -> NalogException.notFound("Nalog " + id + " not found"));
         requireRead(n, actor);
-        return events.timeline(id);
+        boolean manager = actor != null && actor.isAdmin() && !actor.isOwner();     // a manager has no access to Materijal, so its events are not shown either
+        return events.timeline(id).stream().filter(e -> !(manager && "MATERIAL".equals(e.kind()))).toList();
     }
 
     @Transactional(readOnly = true)
@@ -348,6 +353,9 @@ public class NalogService {
         applianceTypes.requireKnown(req.appliance().type());
 
         PricingCalculator.Totals t = pricing.flat(req.price() != null ? req.price() : nalog.getTotal());
+        if (req.price() != null) {
+            nalog.setPriceEntered(true);
+        }
 
         List<String> changed = new ArrayList<>();
         if (!Objects.equals(nalog.getCustomer().getId(), customer.getId())) changed.add("kupac");

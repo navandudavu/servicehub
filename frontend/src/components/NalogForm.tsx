@@ -77,7 +77,7 @@ export function NalogForm({ isAdmin, onCreated, editing, onSaved }: Props) {
 
   // --- price (typed by hand) ---
   const [laborHours, setLaborHours] = useState(editing?.laborHours ?? '0.00');
-  const [price, setPrice] = useState(editing ? editing.total : '');
+  const [price, setPrice] = useState(editing && editing.priceEntered ? editing.total : '');
 
   // --- misc ---
   const [paymentType, setPaymentType] = useState<PaymentType>(editing?.paymentType ?? 'CASH');
@@ -306,13 +306,15 @@ export function NalogForm({ isAdmin, onCreated, editing, onSaved }: Props) {
       </Section>
 
       {/* ---------- price ---------- */}
-      <Section title={t('nalogForm_priceSection')}>
-        <div style={{ maxWidth: 220 }}>
-          <Field label={t('nalogForm_price')} error={fe('price')}>
-            <input className="input" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0.00" />
-          </Field>
-        </div>
-      </Section>
+      {editing && (
+        <Section title={t('nalogForm_priceSection')}>
+          <div style={{ maxWidth: 220 }}>
+            <Field label={t('nalogForm_priceRequired')} error={fe('price')}>
+              <input className="input" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0.00" />
+            </Field>
+          </div>
+        </Section>
+      )}
 
       {/* ---------- payment / dispatch ---------- */}
       <Section title={t('nalogForm_payment')}>

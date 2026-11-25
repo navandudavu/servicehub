@@ -15,7 +15,7 @@ import { useLang } from '../i18n/typedLang';
 import { usePolling } from '../hooks/usePolling';
 import { formatMoney } from '../print/formatMoney';
 import { EDITABLE_STATUSES, NEXT_STATUSES, type NalogEventView, type NalogResponse, type NalogStatus, type TechnicianView } from '../types/nalog';
-import { isAdminLevel } from '../context/roles';
+import { isAdminLevel, isOwner } from '../context/roles';
 
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
@@ -205,14 +205,16 @@ export default function NalogDetail() {
 
           <NalogNotes nalogId={nalog.id} isAdmin={isAdmin} locked={archived || nalog.status === 'COMPLETED'} />
 
-          <NalogMaterial nalogId={nalog.id} assigneeId={nalog.assignedToId} isAdmin={isAdmin} canAdd={materialOpen} canEdit={materialOpen && isAdmin} />
+          {(!isAdmin || isOwner(user?.role)) && (
+            <NalogMaterial nalogId={nalog.id} assigneeId={nalog.assignedToId} isAdmin={isAdmin} canAdd={materialOpen} canEdit={materialOpen && isOwner(user?.role)} />
+          )}
 
           <Card title={t('nalogForm_priceSection')}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
               <tbody>
                 <tr style={{ fontWeight: 700, fontSize: 16 }}>
                   <td style={{ paddingTop: 6 }}>{t('nalogForm_price')}</td>
-                  <td style={{ textAlign: 'right', paddingTop: 6 }}>{formatMoney(nalog.total)} RSD</td>
+                  <td style={{ textAlign: 'right', paddingTop: 6 }}>{nalog.priceEntered ? `${formatMoney(nalog.total)} RSD` : t('nalogForm_priceMissing')}</td>
                 </tr>
               </tbody>
             </table>

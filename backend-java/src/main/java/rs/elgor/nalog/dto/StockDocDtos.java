@@ -91,8 +91,9 @@ public final class StockDocDtos {
             @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal closing
     ) {}
 
-    /** A part a technician currently holds (zaduzeno - razduzeno > 0). Deliberately WITHOUT a quantity. */
-    public record HeldPart(Long partId, String sku, String name, String unit) {}
+    /** A part a technician currently holds (zaduzeno - razduzeno > 0), with the quantity he holds. Never a price. */
+    public record HeldPart(Long partId, String sku, String name, String unit,
+                           @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal quantity) {}
 
     /** Material used on a nalog = a line of the automatic Razduzenje document. */
     public record MaterialLine(

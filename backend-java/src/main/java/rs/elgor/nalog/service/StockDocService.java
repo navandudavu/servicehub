@@ -339,7 +339,7 @@ public class StockDocService {
         return held(tech).stream()
                 .filter(h -> needle.isEmpty() || h.name().toLowerCase().contains(needle)
                         || (h.sku() != null && h.sku().toLowerCase().contains(needle)))
-                .map(h -> new HeldPart(h.partId(), h.sku(), h.name(), h.unit())).toList();
+                .map(h -> new HeldPart(h.partId(), h.sku(), h.name(), h.unit(), h.quantity())).toList();
     }
 
     /** Serialises material changes per technician, so two saves cannot both spend the same last piece. */
