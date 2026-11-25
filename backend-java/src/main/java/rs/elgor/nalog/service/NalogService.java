@@ -333,15 +333,14 @@ public class NalogService {
     /**
      * One transaction, like create: the nalog row is locked, the money is recomputed in Java, and any failure
      * rolls everything back. COMPLETED (finished, accounting document) and CANCELLED (final) cannot be edited
-     * (an admin may still correct a COMPLETED one).
+     * by anybody, admin included.
      */
     @Transactional(rollbackFor = Exception.class)
     public NalogResponse update(Long id, UpdateNalogRequest req, AuthUser actor) {
         Nalog nalog = nalogRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> NalogException.notFound("Nalog " + id + " not found"));
         requireAccess(nalog, actor);
-        boolean closedButAdmin = nalog.getStatus() == NalogStatus.COMPLETED && actor != null && actor.isAdmin();
-        if (!EDITABLE.contains(nalog.getStatus()) && !closedButAdmin) {
+        if (!EDITABLE.contains(nalog.getStatus())) {
             throw NalogException.conflict("A " + nalog.getStatus() + " nalog cannot be edited");
         }
         if (!Objects.equals(nalog.getVersion(), req.expectedVersion())) {

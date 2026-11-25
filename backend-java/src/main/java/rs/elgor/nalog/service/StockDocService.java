@@ -108,6 +108,12 @@ public class StockDocService {
         requireAdmin(actor);
         StockDoc d = docs.findById(id).orElseThrow(() -> NalogException.notFound("Dokument ne postoji"));
         requireTechnician(req.technicianId());
+        if (d.getNalogId() != null) {                   // the Razduzenje of a finished or cancelled nalog is part of its closed record
+            Object st = em.createNativeQuery("SELECT status FROM nalog WHERE id = :id").setParameter("id", d.getNalogId()).getResultStream().findFirst().orElse(null);
+            if ("COMPLETED".equals(st) || "CANCELLED".equals(st)) {
+                throw NalogException.conflict("Razduženje završenog ili otkazanog naloga se ne može menjati");
+            }
+        }
         if (d.getNalogId() != null && d.getTechnicianId() != req.technicianId()) {
             throw NalogException.invalid("Razduženje iz naloga ne može da se prebaci na drugog servisera");
         }

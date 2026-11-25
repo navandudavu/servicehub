@@ -146,7 +146,7 @@ export default function NalogDetail() {
   const moves = archived ? [] : NEXT_STATUSES[nalog.status].filter((s) => s !== 'CANCELLED');
   const canCancel = !archived && NEXT_STATUSES[nalog.status].includes('CANCELLED');       // the technician of the nalog or an admin, with a written reason
   const canEdit = !archived && EDITABLE_STATUSES.includes(nalog.status);
-  const materialOpen = !archived && (!closed || (isAdmin && nalog.status === 'COMPLETED'));
+  const materialOpen = !archived && !closed;
   const canDelete = isAdmin && nalog.status !== 'COMPLETED';
   const c = nalog.customer;
   const a = nalog.appliance;
@@ -221,7 +221,7 @@ export default function NalogDetail() {
             <div style={{ marginTop: 10, color: 'var(--stone)', fontSize: 13 }}>{t('nalogForm_payment')}: {t(`payment_${nalog.paymentType}`)}</div>
           </Card>
 
-          <NalogPhotos nalogId={nalog.id} canUpload={!archived && nalog.status !== 'CANCELLED'} isAdmin={isAdmin} userId={user?.id ?? null} />
+          <NalogPhotos nalogId={nalog.id} canUpload={!archived && !closed} isAdmin={isAdmin} userId={user?.id ?? null} />
 
           {/* the box at the bottom only exists on a cancelled nalog, and shows why it was cancelled */}
           {nalog.status === 'CANCELLED' && (

@@ -62,8 +62,8 @@ public class NalogPhotoService {
     @Transactional(rollbackFor = Exception.class)
     public PhotoView upload(Long nalogId, MultipartFile file, String category, String caption, AuthUser actor) {
         Nalog nalog = nalogService.loadAccessible(nalogId, actor);
-        if (nalog.getStatus() == NalogStatus.CANCELLED) {
-            throw NalogException.conflict("Photos cannot be added to a cancelled nalog");
+        if (nalog.getStatus() == NalogStatus.CANCELLED || nalog.getStatus() == NalogStatus.COMPLETED) {
+            throw NalogException.conflict("Photos cannot be added to a finished or cancelled nalog");
         }
         if (file == null || file.isEmpty()) {
             throw NalogException.invalid("No photo received");
@@ -146,7 +146,10 @@ public class NalogPhotoService {
     /** Admin may delete any photo; a technician only their own uploads. */
     @Transactional(rollbackFor = Exception.class)
     public void delete(Long nalogId, Long photoId, AuthUser actor) {
-        nalogService.loadAccessible(nalogId, actor);
+        Nalog nalog = nalogService.loadAccessible(nalogId, actor);
+        if (nalog.getStatus() == NalogStatus.CANCELLED || nalog.getStatus() == NalogStatus.COMPLETED) {
+            throw NalogException.conflict("Photos of a finished or cancelled nalog cannot be deleted");
+        }
         NalogPhoto p = photos.findByIdAndNalogId(photoId, nalogId)
                 .orElseThrow(() -> NalogException.notFound("Photo " + photoId + " not found"));
         if (!actor.isAdmin() && !java.util.Objects.equals(p.getUploadedById(), actor.id())) {

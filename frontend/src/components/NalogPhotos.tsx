@@ -114,7 +114,7 @@ export function NalogPhotos(props: {
     }
   }
 
-  const mayDelete = (p: PhotoView) => isAdmin || (userId !== null && p.uploadedById === userId);
+  const mayDelete = (p: PhotoView) => canUpload && (isAdmin || (userId !== null && p.uploadedById === userId));
 
   return (
     <div className="card" style={{ padding: 18, marginBottom: 16 }}>

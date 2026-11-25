@@ -159,11 +159,11 @@ public class NalogMaterialService {
         return line;
     }
 
-    /** Finished and cancelled nalozi are closed; an admin-level user may still correct a COMPLETED one. */
+    /** Finished and cancelled nalozi are closed for everybody: they can only be printed. */
     private static void requireOpen(Nalog nalog, AuthUser actor) {
         NalogStatus s = nalog.getStatus();
         boolean closed = s == NalogStatus.COMPLETED || s == NalogStatus.CANCELLED;
-        if (closed && !(s == NalogStatus.COMPLETED && actor != null && actor.isOwner())) {
+        if (closed) {
             throw NalogException.conflict("Materijal se ne može menjati na " + (s == NalogStatus.COMPLETED ? "završenom" : "otkazanom") + " nalogu");
         }
     }

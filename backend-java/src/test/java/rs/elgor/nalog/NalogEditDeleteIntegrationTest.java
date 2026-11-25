@@ -121,10 +121,11 @@ class NalogEditDeleteIntegrationTest extends AbstractIntegrationTest {
         service.changeStatus(done.id(), NalogStatus.IN_PROGRESS, null, admin);
         readyToClose(done.id());
         service.changeStatus(done.id(), NalogStatus.COMPLETED, null, admin);
-        // a closed nalog: technicians cannot touch it, an admin still can
+        // a closed nalog can only be printed: nobody edits it, admin included
         assertEquals(409, assertThrows(NalogException.class,
                 () -> service.update(done.id(), edit(service.get(done.id(), admin), "1.00"), tech2)).getStatus().value());
-        assertEquals("Novi opis", service.update(done.id(), edit(service.get(done.id(), admin), "1.00"), admin).diagnosis());
+        assertEquals(409, assertThrows(NalogException.class,
+                () -> service.update(done.id(), edit(service.get(done.id(), admin), "1.00"), admin)).getStatus().value());
     }
 
     @Test
